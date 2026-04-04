@@ -1,0 +1,204 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+/**
+ * @title OnlySwapStaking
+ * @dev Single pool staking contract for OnlySwap ecosystem.
+ * Refactored for maximum security using OpenZeppelin standards.
+ * Supports Fee-on-Transfer (FoT) tokens for staking.
+ */
+contract OnlySwapStaking is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    struct UserInfo {
+        uint256 amount;
+        uint256 rewardDebt;
+    }
+
+    IERC20 public immutable lpToken;
+    IERC20 public immutable rewardToken;
+
+    uint256 public rewardPerBlock;
+    uint256 public rewardEndBlock;
+    uint256 public lastRewardBlock;
+    uint256 public accRewardPerShare; // scaled by 1e12
+    uint256 public totalStaked;
+    bool public rewardsStarted;
+
+    mapping(address => UserInfo) public userInfo;
+
+    event Deposit(address indexed user, uint256 amount);
+    event Withdraw(address indexed user, uint256 amount);
+    event Claim(address indexed user, uint256 amount);
+    event EmergencyWithdraw(address indexed user, uint256 amount);
+    event RewardsStarted(uint256 rewardPerBlock, uint256 startBlock, uint256 endBlock, uint256 totalReward);
+
+    constructor(
+        address lpToken_,
+        address rewardToken_,
+        address owner_
+    ) Ownable(owner_) {
+        require(lpToken_ != address(0), "STAKING: ZERO_LP");
+        require(rewardToken_ != address(0), "STAKING: ZERO_REWARD");
+
+        lpToken = IERC20(lpToken_);
+        rewardToken = IERC20(rewardToken_);
+    }
+
+    /**
+     * @dev Starts the reward emission. 
+     * Rewards are funded by the current OS balance held by this contract.
+     */
+    function startRewards(uint256 rewardBlocks) external onlyOwner {
+        require(!rewardsStarted, "STAKING: STARTED");
+        require(rewardBlocks > 0, "STAKING: ZERO_BLOCKS");
+
+        uint256 rewardBalance = rewardToken.balanceOf(address(this));
+        require(rewardBalance > 0, "STAKING: NO_REWARD_BALANCE");
+
+        uint256 perBlock = rewardBalance / rewardBlocks;
+        require(perBlock > 0, "STAKING: TOO_FEW_REWARDS");
+
+        rewardsStarted = true;
+        rewardPerBlock = perBlock;
+        lastRewardBlock = block.number;
+        rewardEndBlock = block.number + rewardBlocks;
+
+        emit RewardsStarted(perBlock, block.number, rewardEndBlock, rewardBalance);
+    }
+
+    function pendingReward(address user) external view returns (uint256) {
+        UserInfo memory u = userInfo[user];
+        uint256 _accRewardPerShare = accRewardPerShare;
+
+        if (rewardsStarted && block.number > lastRewardBlock && totalStaked > 0) {
+            uint256 toBlock = _lastRewardBlockApplicable();
+            if (toBlock > lastRewardBlock) {
+                uint256 blocks = toBlock - lastRewardBlock;
+                uint256 reward = blocks * rewardPerBlock;
+                _accRewardPerShare += (reward * 1e12) / totalStaked;
+            }
+        }
+        return (u.amount * _accRewardPerShare / 1e12) - u.rewardDebt;
+    }
+
+    function deposit(uint256 amount) external nonReentrant {
+        UserInfo storage u = userInfo[msg.sender];
+        _updatePool();
+
+        if (u.amount > 0) {
+            uint256 pending = (u.amount * accRewardPerShare / 1e12) - u.rewardDebt;
+            if (pending > 0) {
+                _safeRewardTransfer(msg.sender, pending);
+                emit Claim(msg.sender, pending);
+            }
+        }
+
+        if (amount > 0) {
+            uint256 balanceBefore = lpToken.balanceOf(address(this));
+            lpToken.safeTransferFrom(msg.sender, address(this), amount);
+            uint256 balanceAfter = lpToken.balanceOf(address(this));
+            uint256 actualAmount = balanceAfter - balanceBefore;
+            
+            u.amount += actualAmount;
+            totalStaked += actualAmount;
+            emit Deposit(msg.sender, actualAmount);
+        }
+
+        u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
+    }
+
+    function withdraw(uint256 amount) external nonReentrant {
+        UserInfo storage u = userInfo[msg.sender];
+        require(u.amount >= amount, "STAKING: AMOUNT_TOO_HIGH");
+        _updatePool();
+
+        uint256 pending = (u.amount * accRewardPerShare / 1e12) - u.rewardDebt;
+        if (pending > 0) {
+            _safeRewardTransfer(msg.sender, pending);
+            emit Claim(msg.sender, pending);
+        }
+
+        if (amount > 0) {
+            u.amount -= amount;
+            totalStaked -= amount;
+            lpToken.safeTransfer(msg.sender, amount);
+            emit Withdraw(msg.sender, amount);
+        }
+
+        u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
+    }
+
+    function claim() external nonReentrant {
+        UserInfo storage u = userInfo[msg.sender];
+        _updatePool();
+        uint256 pending = (u.amount * accRewardPerShare / 1e12) - u.rewardDebt;
+        if (pending > 0) {
+            _safeRewardTransfer(msg.sender, pending);
+            u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
+            emit Claim(msg.sender, pending);
+        }
+    }
+
+    function emergencyWithdraw() external nonReentrant {
+        UserInfo storage u = userInfo[msg.sender];
+        uint256 amount = u.amount;
+        require(amount > 0, "STAKING: NO_STAKE");
+
+        u.amount = 0;
+        u.rewardDebt = 0;
+        totalStaked -= amount;
+
+        lpToken.safeTransfer(msg.sender, amount);
+        emit EmergencyWithdraw(msg.sender, amount);
+    }
+
+    /**
+     * @dev Allows owner to recover leftover rewards after the emission period ends.
+     */
+    function recoverEndedRewards(address to, uint256 amount) external onlyOwner nonReentrant {
+        require(to != address(0), "STAKING: ZERO_TO");
+        require(rewardsStarted && block.number > rewardEndBlock, "STAKING: NOT_ENDED");
+        rewardToken.safeTransfer(to, amount);
+    }
+
+    function _updatePool() internal {
+        if (!rewardsStarted) {
+            return;
+        }
+        if (block.number <= lastRewardBlock) {
+            return;
+        }
+        if (totalStaked == 0) {
+            lastRewardBlock = _lastRewardBlockApplicable();
+            return;
+        }
+
+        uint256 toBlock = _lastRewardBlockApplicable();
+        if (toBlock <= lastRewardBlock) {
+            return;
+        }
+
+        uint256 blocks = toBlock - lastRewardBlock;
+        uint256 reward = blocks * rewardPerBlock;
+        accRewardPerShare += (reward * 1e12) / totalStaked;
+        lastRewardBlock = toBlock;
+    }
+
+    function _lastRewardBlockApplicable() internal view returns (uint256) {
+        return block.number < rewardEndBlock ? block.number : rewardEndBlock;
+    }
+
+    function _safeRewardTransfer(address to, uint256 amount) internal {
+        uint256 bal = rewardToken.balanceOf(address(this));
+        uint256 sendAmount = amount > bal ? bal : amount;
+        if (sendAmount > 0) {
+            rewardToken.safeTransfer(to, sendAmount);
+        }
+    }
+}
