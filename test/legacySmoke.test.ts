@@ -1,27 +1,48 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import type {
+  EvmTokenDeployer,
+  OnlySwapStaking,
+  OnlySwapToken,
+  UniswapV2Factory,
+  UniswapV2Router02
+} from "../typechain-types";
+import {
+  EvmTokenDeployer__factory,
+  OnlySwapStaking__factory,
+  OnlySwapToken__factory,
+  UniswapV2Factory__factory,
+  UniswapV2Router02__factory
+} from "../typechain-types";
 
 describe("Uni2 legacy NeoX smoke", function () {
   it("deploys core router plus auxiliary contracts", async function () {
     const [owner, treasury, user] = await ethers.getSigners();
 
-    const Token = await ethers.getContractFactory("OnlySwapToken");
-    const osToken = await Token.deploy(ethers.parseEther("1000000"), treasury.address, owner.address);
+    const osToken: OnlySwapToken = await new OnlySwapToken__factory(owner).deploy(
+      ethers.parseEther("1000000"),
+      treasury.address,
+      owner.address
+    );
     await osToken.waitForDeployment();
 
-    const Factory = await ethers.getContractFactory("contracts/UniswapV2Factory.sol:UniswapV2Factory");
-    const factory = await Factory.deploy(owner.address);
+    const factory: UniswapV2Factory = await new UniswapV2Factory__factory(owner).deploy(owner.address);
     await factory.waitForDeployment();
 
-    const Router = await ethers.getContractFactory("contracts/UniswapV2Router02.sol:UniswapV2Router02");
-    const router = await Router.deploy(await factory.getAddress(), await osToken.getAddress());
+    const router: UniswapV2Router02 = await new UniswapV2Router02__factory(owner).deploy(
+      await factory.getAddress(),
+      await osToken.getAddress()
+    );
     await router.waitForDeployment();
 
     expect(await factory.feeToSetter()).to.equal(owner.address);
     expect(await router.factory()).to.equal(await factory.getAddress());
 
-    const Staking = await ethers.getContractFactory("OnlySwapStaking");
-    const staking = await Staking.deploy(await osToken.getAddress(), await osToken.getAddress(), owner.address);
+    const staking: OnlySwapStaking = await new OnlySwapStaking__factory(owner).deploy(
+      await osToken.getAddress(),
+      await osToken.getAddress(),
+      owner.address
+    );
     await staking.waitForDeployment();
 
     await osToken.initializeAllocation(await staking.getAddress());
@@ -36,8 +57,7 @@ describe("Uni2 legacy NeoX smoke", function () {
     expect(await staking.totalStaked()).to.equal(ethers.parseEther("100"));
     expect(await staking.pendingReward(user.address)).to.be.gt(0n);
 
-    const TokenDeployer = await ethers.getContractFactory("EvmTokenDeployer");
-    const tokenDeployer = await TokenDeployer.deploy();
+    const tokenDeployer: EvmTokenDeployer = await new EvmTokenDeployer__factory(owner).deploy();
     await tokenDeployer.waitForDeployment();
 
     await tokenDeployer.deployToken(
