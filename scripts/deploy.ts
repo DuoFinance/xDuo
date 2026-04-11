@@ -1,6 +1,7 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
+import { deployTokenDeployer } from "./deployTokenDeployer";
 
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
@@ -42,6 +43,8 @@ async function main() {
   const routerAddress = await router.getAddress();
   console.log("Router:", routerAddress);
   console.log("Router tx:", router.deploymentTransaction()?.hash ?? "unknown");
+
+  await deployTokenDeployer();
 }
 
 main().catch((error) => {

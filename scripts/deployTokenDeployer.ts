@@ -2,7 +2,7 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
 
-async function main() {
+export async function deployTokenDeployer() {
   const [deployer] = await ethers.getSigners();
   const chain = resolveChainByNetwork(hre.network.name);
 
@@ -27,7 +27,7 @@ async function main() {
   console.log("Deploy tx:", deployerContract.deploymentTransaction()?.hash ?? "unknown");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+// main().catch((error) => {
+//   console.error(error);
+//   process.exitCode = 1;
+// });
