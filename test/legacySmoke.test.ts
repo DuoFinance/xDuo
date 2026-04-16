@@ -2,15 +2,15 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import type {
   EvmTokenDeployer,
-  OnlySwapStaking,
-  OnlySwapToken,
+  DuoSwapStaking,
+  DuoSwapToken,
   UniswapV2Factory,
   UniswapV2Router02
 } from "../typechain-types";
 import {
   EvmTokenDeployer__factory,
-  OnlySwapStaking__factory,
-  OnlySwapToken__factory,
+  DuoSwapStaking__factory,
+  DuoSwapToken__factory,
   UniswapV2Factory__factory,
   UniswapV2Router02__factory
 } from "../typechain-types";
@@ -19,37 +19,37 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("deploys core router plus auxiliary contracts", async function () {
     const [owner, treasury, user] = await ethers.getSigners();
 
-    const osToken: OnlySwapToken = await new OnlySwapToken__factory(owner).deploy(
+    const duoToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       treasury.address,
       owner.address
     );
-    await osToken.waitForDeployment();
+    await duoToken.waitForDeployment();
 
     const factory: UniswapV2Factory = await new UniswapV2Factory__factory(owner).deploy(owner.address);
     await factory.waitForDeployment();
 
     const router: UniswapV2Router02 = await new UniswapV2Router02__factory(owner).deploy(
       await factory.getAddress(),
-      await osToken.getAddress()
+      await duoToken.getAddress()
     );
     await router.waitForDeployment();
 
     expect(await factory.feeToSetter()).to.equal(owner.address);
     expect(await router.factory()).to.equal(await factory.getAddress());
 
-    const staking: OnlySwapStaking = await new OnlySwapStaking__factory(owner).deploy(
-      await osToken.getAddress(),
-      await osToken.getAddress(),
+    const staking: DuoSwapStaking = await new DuoSwapStaking__factory(owner).deploy(
+      await duoToken.getAddress(),
+      await duoToken.getAddress(),
       owner.address
     );
     await staking.waitForDeployment();
 
-    await osToken.initializeAllocation(await staking.getAddress());
-    await osToken.connect(treasury).transfer(user.address, ethers.parseEther("1000"));
+    await duoToken.initializeAllocation(await staking.getAddress());
+    await duoToken.connect(treasury).transfer(user.address, ethers.parseEther("1000"));
     await staking.startRewards(10n);
 
-    await osToken.connect(user).approve(await staking.getAddress(), ethers.parseEther("100"));
+    await duoToken.connect(user).approve(await staking.getAddress(), ethers.parseEther("100"));
     await staking.connect(user).deposit(ethers.parseEther("100"));
     await ethers.provider.send("evm_mine", []);
     await ethers.provider.send("evm_mine", []);
@@ -75,14 +75,14 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("funds and starts rewards for a new pool in one tx", async function () {
     const [owner, treasury] = await ethers.getSigners();
 
-    const osToken: OnlySwapToken = await new OnlySwapToken__factory(owner).deploy(
+    const osToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       treasury.address,
       owner.address
     );
     await osToken.waitForDeployment();
 
-    const staking: OnlySwapStaking = await new OnlySwapStaking__factory(owner).deploy(
+    const staking: DuoSwapStaking = await new DuoSwapStaking__factory(owner).deploy(
       await osToken.getAddress(),
       await osToken.getAddress(),
       owner.address
@@ -102,14 +102,14 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("adds rewards to an existing pool and refreshes the schedule", async function () {
     const [owner, treasury] = await ethers.getSigners();
 
-    const osToken: OnlySwapToken = await new OnlySwapToken__factory(owner).deploy(
+    const osToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       treasury.address,
       owner.address
     );
     await osToken.waitForDeployment();
 
-    const staking: OnlySwapStaking = await new OnlySwapStaking__factory(owner).deploy(
+    const staking: DuoSwapStaking = await new DuoSwapStaking__factory(owner).deploy(
       await osToken.getAddress(),
       await osToken.getAddress(),
       owner.address

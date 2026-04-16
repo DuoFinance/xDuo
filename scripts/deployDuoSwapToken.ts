@@ -31,7 +31,7 @@ async function main() {
   const token = await Token.deploy(totalSupply, treasury, owner, overrides);
   await token.waitForDeployment();
 
-  console.log("OnlySwapToken:", await token.getAddress());
+  console.log("DuoSwapToken:", await token.getAddress());
   console.log("Deploy tx:", token.deploymentTransaction()?.hash ?? "unknown");
 }
 

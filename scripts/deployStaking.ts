@@ -30,7 +30,7 @@ async function main() {
     }
   }
 
-  const osTokenAddress = requireEnvByNetwork(hre.network.name, "TOKEN_ADDRESS");
+  const duoTokenAddress = requireEnvByNetwork(hre.network.name, "TOKEN_ADDRESS");
   const stakingOwner = getEnvByNetwork(hre.network.name, "STAKING_OWNER") ?? deployer.address;
   const rewardBlocks = BigInt(getEnvByNetwork(hre.network.name, "STAKING_REWARD_BLOCKS") ?? "0");
   const shouldInitAllocation = parseBool(getEnvByNetwork(hre.network.name, "INIT_ALLOCATION"));
@@ -47,24 +47,24 @@ async function main() {
   console.log("Network:", hre.network.name);
   console.log("Deployer:", deployer.address);
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
-  console.log("Reward token:", osTokenAddress);
+  console.log("Reward token:", duoTokenAddress);
   console.log("Staking owner:", stakingOwner);
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 5_000_000n);
-  const Staking = await ethers.getContractFactory("OnlySwapStaking");
+  const Staking = await ethers.getContractFactory("DuoSwapStaking");
 
   for (let i = 0; i < lpTokens.length; i += 1) {
     const lpToken = lpTokens[i];
-    const staking = await Staking.deploy(lpToken, osTokenAddress, stakingOwner, overrides);
+    const staking = await Staking.deploy(lpToken, duoTokenAddress, stakingOwner, overrides);
     await staking.waitForDeployment();
     const stakingAddress = await staking.getAddress();
 
-    console.log(`OnlySwapStaking for ${lpToken}:`, stakingAddress);
+    console.log(`DuoSwapStaking for ${lpToken}:`, stakingAddress);
     console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
 
     if (i === 0 && shouldInitAllocation) {
-      const osToken = await ethers.getContractAt("OnlySwapToken", osTokenAddress);
-      const allocationTx = await osToken.initializeAllocation(stakingAddress, overrides);
+      const duoToken = await ethers.getContractAt("DuoSwapToken", duoTokenAddress);
+      const allocationTx = await duoToken.initializeAllocation(stakingAddress, overrides);
       await allocationTx.wait();
       console.log("initializeAllocation tx:", allocationTx.hash);
     }

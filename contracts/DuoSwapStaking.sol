@@ -7,12 +7,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title OnlySwapStaking
- * @dev Single pool staking contract for OnlySwap ecosystem.
+ * @title DuoSwapStaking
+ * @dev Single pool staking contract for DuoSwap ecosystem.
  * Refactored for maximum security using OpenZeppelin standards.
  * Supports Fee-on-Transfer (FoT) tokens for staking.
  */
-contract OnlySwapStaking is Ownable, ReentrancyGuard {
+contract DuoSwapStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     struct UserInfo {
@@ -53,7 +53,7 @@ contract OnlySwapStaking is Ownable, ReentrancyGuard {
 
     /**
      * @dev Starts the reward emission. 
-     * Rewards are funded by the current OS balance held by this contract.
+     * Rewards are funded by the current DUO balance held by this contract.
      */
     function startRewards(uint256 rewardBlocks) external onlyOwner {
         require(!rewardsStarted, "STAKING: STARTED");

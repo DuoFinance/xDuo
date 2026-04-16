@@ -5,11 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title OnlySwapToken
- * @dev Custom ERC20 token for OnlySwap ecosystem with fixed supply and initial allocation split.
+ * @title DuoSwapToken
+ * @dev Custom ERC20 token for DuoSwap ecosystem with fixed supply and initial allocation split.
  * Refactored using OpenZeppelin standards for maximum security and compliance.
  */
-contract OnlySwapToken is ERC20, Ownable {
+contract DuoSwapToken is ERC20, Ownable {
     address public immutable treasury;
     bool public allocationInitialized;
     address public stakingContract;
@@ -20,9 +20,9 @@ contract OnlySwapToken is ERC20, Ownable {
         uint256 totalSupply_,
         address treasury_,
         address owner_
-    ) ERC20("OnlySwap", "OS") Ownable(owner_) {
-        require(totalSupply_ > 0, "OS: ZERO_SUPPLY");
-        require(treasury_ != address(0), "OS: ZERO_TREASURY");
+    ) ERC20("DuoSwap", "DUO") Ownable(owner_) {
+        require(totalSupply_ > 0, "DUO: ZERO_SUPPLY");
+        require(treasury_ != address(0), "DUO: ZERO_TREASURY");
 
         treasury = treasury_;
         
@@ -36,8 +36,8 @@ contract OnlySwapToken is ERC20, Ownable {
      * Can only be called once by the owner.
      */
     function initializeAllocation(address stakingContract_) external onlyOwner {
-        require(!allocationInitialized, "OS: ALREADY_INIT");
-        require(stakingContract_ != address(0), "OS: ZERO_STAKING");
+        require(!allocationInitialized, "DUO: ALREADY_INIT");
+        require(stakingContract_ != address(0), "DUO: ZERO_STAKING");
 
         allocationInitialized = true;
         stakingContract = stakingContract_;

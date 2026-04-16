@@ -1,6 +1,7 @@
 node_modules
-artifacts
-cache
 coverage
 .env
 .DS_Store
+typechain-types/
+artifacts/
+cache/

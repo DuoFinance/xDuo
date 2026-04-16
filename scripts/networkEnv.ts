@@ -1,7 +1,7 @@
 const NETWORK_ENV_PREFIX: Record<string, string> = {
-  legacy:"OS_LEGACY_",
-  neoxTestnet: "OS_TESTNET_",
-  neoxMainnet: "OS_MAINNET_"
+  legacy:"DUO_LEGACY_",
+  neoxTestnet: "DUO_TESTNET_",
+  neoxMainnet: "DUO_MAINNET_"
 };
 
 function normalize(value: string | undefined): string | undefined {
@@ -16,7 +16,7 @@ export function getEnvByNetwork(networkName: string, key: string): string | unde
     const scoped = normalize(process.env[`${prefix}${key}`]);
     if (scoped !== undefined) return scoped;
   }
-  return normalize(process.env[`OS_${key}`]);
+  return normalize(process.env[`DUO_${key}`]);
 }
 
 export function requireEnvByNetwork(networkName: string, key: string): string {

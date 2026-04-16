@@ -4,6 +4,8 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ethers";
 import { CHAIN_CONFIGS, ChainConfig, getRpcUrl } from "./config/chains";
 
+
+
 function networkConfig(chain: ChainConfig) {
   return {
     url: getRpcUrl(chain) || "http://127.0.0.1:8545",
