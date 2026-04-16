@@ -37,6 +37,7 @@ contract OnlySwapStaking is Ownable, ReentrancyGuard {
     event Claim(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
     event RewardsStarted(uint256 rewardPerBlock, uint256 startBlock, uint256 endBlock, uint256 totalReward);
+    event RewardsAdded(uint256 addedReward, uint256 rewardPerBlock, uint256 startBlock, uint256 endBlock, uint256 totalReward);
 
     constructor(
         address lpToken_,
@@ -70,6 +71,23 @@ contract OnlySwapStaking is Ownable, ReentrancyGuard {
         rewardEndBlock = block.number + rewardBlocks;
 
         emit RewardsStarted(perBlock, block.number, rewardEndBlock, rewardBalance);
+    }
+
+    /**
+     * @dev Funds a brand new pool and starts the reward emission in a single tx.
+     */
+    function addRewardsForNewPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+        require(!rewardsStarted, "STAKING: STARTED");
+        _addRewards(amount, rewardBlocks, true);
+    }
+
+    /**
+     * @dev Adds reward tokens to an existing pool and recalculates the reward schedule
+     * using the undistributed rewards plus the newly funded amount.
+     */
+    function addRewardsForExistingPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+        require(rewardsStarted, "STAKING: NOT_STARTED");
+        _addRewards(amount, rewardBlocks, false);
     }
 
     function pendingReward(address user) external view returns (uint256) {
@@ -199,6 +217,40 @@ contract OnlySwapStaking is Ownable, ReentrancyGuard {
         uint256 sendAmount = amount > bal ? bal : amount;
         if (sendAmount > 0) {
             rewardToken.safeTransfer(to, sendAmount);
+        }
+    }
+
+    function _addRewards(uint256 amount, uint256 rewardBlocks, bool isNewPool) internal {
+        require(amount > 0, "STAKING: ZERO_REWARD_AMOUNT");
+        require(rewardBlocks > 0, "STAKING: ZERO_BLOCKS");
+
+        _updatePool();
+
+        uint256 balanceBefore = rewardToken.balanceOf(address(this));
+        rewardToken.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 fundedAmount = rewardToken.balanceOf(address(this)) - balanceBefore;
+        require(fundedAmount > 0, "STAKING: NO_REWARD_RECEIVED");
+
+        uint256 remainingRewards;
+        if (rewardsStarted && rewardEndBlock > lastRewardBlock) {
+            remainingRewards = (rewardEndBlock - lastRewardBlock) * rewardPerBlock;
+        }
+
+        uint256 totalReward = isNewPool
+            ? rewardToken.balanceOf(address(this))
+            : remainingRewards + fundedAmount;
+        uint256 perBlock = totalReward / rewardBlocks;
+        require(perBlock > 0, "STAKING: TOO_FEW_REWARDS");
+
+        rewardsStarted = true;
+        rewardPerBlock = perBlock;
+        lastRewardBlock = block.number;
+        rewardEndBlock = block.number + rewardBlocks;
+
+        if (isNewPool) {
+            emit RewardsStarted(perBlock, block.number, rewardEndBlock, totalReward);
+        } else {
+            emit RewardsAdded(fundedAmount, perBlock, block.number, rewardEndBlock, totalReward);
         }
     }
 }

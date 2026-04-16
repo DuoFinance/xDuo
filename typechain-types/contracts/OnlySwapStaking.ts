@@ -27,6 +27,8 @@ export interface OnlySwapStakingInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "accRewardPerShare"
+      | "addRewardsForExistingPool"
+      | "addRewardsForNewPool"
       | "claim"
       | "deposit"
       | "emergencyWithdraw"
@@ -53,6 +55,7 @@ export interface OnlySwapStakingInterface extends Interface {
       | "Deposit"
       | "EmergencyWithdraw"
       | "OwnershipTransferred"
+      | "RewardsAdded"
       | "RewardsStarted"
       | "Withdraw"
   ): EventFragment;
@@ -60,6 +63,14 @@ export interface OnlySwapStakingInterface extends Interface {
   encodeFunctionData(
     functionFragment: "accRewardPerShare",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "addRewardsForExistingPool",
+    values: [BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "addRewardsForNewPool",
+    values: [BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "claim", values?: undefined): string;
   encodeFunctionData(
@@ -127,6 +138,14 @@ export interface OnlySwapStakingInterface extends Interface {
 
   decodeFunctionResult(
     functionFragment: "accRewardPerShare",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "addRewardsForExistingPool",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "addRewardsForNewPool",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "claim", data: BytesLike): Result;
@@ -237,6 +256,34 @@ export namespace OwnershipTransferredEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace RewardsAddedEvent {
+  export type InputTuple = [
+    addedReward: BigNumberish,
+    rewardPerBlock: BigNumberish,
+    startBlock: BigNumberish,
+    endBlock: BigNumberish,
+    totalReward: BigNumberish
+  ];
+  export type OutputTuple = [
+    addedReward: bigint,
+    rewardPerBlock: bigint,
+    startBlock: bigint,
+    endBlock: bigint,
+    totalReward: bigint
+  ];
+  export interface OutputObject {
+    addedReward: bigint;
+    rewardPerBlock: bigint;
+    startBlock: bigint;
+    endBlock: bigint;
+    totalReward: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace RewardsStartedEvent {
   export type InputTuple = [
     rewardPerBlock: BigNumberish,
@@ -320,6 +367,18 @@ export interface OnlySwapStaking extends BaseContract {
 
   accRewardPerShare: TypedContractMethod<[], [bigint], "view">;
 
+  addRewardsForExistingPool: TypedContractMethod<
+    [amount: BigNumberish, rewardBlocks: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
+  addRewardsForNewPool: TypedContractMethod<
+    [amount: BigNumberish, rewardBlocks: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
   claim: TypedContractMethod<[], [void], "nonpayable">;
 
   deposit: TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
@@ -379,6 +438,20 @@ export interface OnlySwapStaking extends BaseContract {
   getFunction(
     nameOrSignature: "accRewardPerShare"
   ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "addRewardsForExistingPool"
+  ): TypedContractMethod<
+    [amount: BigNumberish, rewardBlocks: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "addRewardsForNewPool"
+  ): TypedContractMethod<
+    [amount: BigNumberish, rewardBlocks: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "claim"
   ): TypedContractMethod<[], [void], "nonpayable">;
@@ -471,6 +544,13 @@ export interface OnlySwapStaking extends BaseContract {
     OwnershipTransferredEvent.OutputObject
   >;
   getEvent(
+    key: "RewardsAdded"
+  ): TypedContractEvent<
+    RewardsAddedEvent.InputTuple,
+    RewardsAddedEvent.OutputTuple,
+    RewardsAddedEvent.OutputObject
+  >;
+  getEvent(
     key: "RewardsStarted"
   ): TypedContractEvent<
     RewardsStartedEvent.InputTuple,
@@ -528,6 +608,17 @@ export interface OnlySwapStaking extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
+    >;
+
+    "RewardsAdded(uint256,uint256,uint256,uint256,uint256)": TypedContractEvent<
+      RewardsAddedEvent.InputTuple,
+      RewardsAddedEvent.OutputTuple,
+      RewardsAddedEvent.OutputObject
+    >;
+    RewardsAdded: TypedContractEvent<
+      RewardsAddedEvent.InputTuple,
+      RewardsAddedEvent.OutputTuple,
+      RewardsAddedEvent.OutputObject
     >;
 
     "RewardsStarted(uint256,uint256,uint256,uint256)": TypedContractEvent<
