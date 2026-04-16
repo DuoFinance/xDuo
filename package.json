@@ -17,6 +17,9 @@
     "deploy:staking:legacy": "hardhat run scripts/deployStaking.ts --network legacy",
     "deploy:staking:testnet": "hardhat run scripts/deployStaking.ts --network neoxTestnet",
     "deploy:staking:mainnet": "hardhat run scripts/deployStaking.ts --network neoxMainnet",
+    "deploy:staking-factory:legacy": "hardhat run scripts/deployStakingFactory.ts --network legacy",
+    "deploy:staking-factory:testnet": "hardhat run scripts/deployStakingFactory.ts --network neoxTestnet",
+    "deploy:staking-factory:mainnet": "hardhat run scripts/deployStakingFactory.ts --network neoxMainnet",
     "manage:staking:legacy": "hardhat run scripts/manageStaking.ts --network legacy",
     "manage:staking:testnet": "hardhat run scripts/manageStaking.ts --network neoxTestnet",
     "manage:staking:mainnet": "hardhat run scripts/manageStaking.ts --network neoxMainnet"

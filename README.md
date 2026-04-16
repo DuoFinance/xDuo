@@ -65,8 +65,11 @@ npm run deploy:mainnet
 npm run deploy:token:testnet
 npm run deploy:deployer:testnet
 npm run deploy:staking:testnet
+npm run deploy:staking-factory:testnet
 npm run manage:staking:testnet
 ```
+
+`deploy:staking:*` remains the default path for single-pool staking rollout. `deploy:staking-factory:*` is a separate optional deployment for future pool expansion.
 
 Staking management actions are driven by env vars. Set `DUO_STAKING_ACTION` to one of:
 `createPool`, `createPoolWithRewards`, `startRewards`, `fundAndStartRewards`, `addRewards`, `recoverEndedRewards`.
@@ -75,6 +78,7 @@ Common staking management env vars:
 
 ```bash
 DUO_STAKING_FACTORY_ADDRESS=
+DUO_STAKING_FACTORY_OWNER=
 DUO_STAKING_ADDRESS=
 DUO_STAKING_LP_TOKEN=
 DUO_STAKING_REWARD_TOKEN=
