@@ -16,7 +16,10 @@
     "deploy:deployer:mainnet": "hardhat run scripts/deployTokenDeployer.ts --network neoxMainnet",
     "deploy:staking:legacy": "hardhat run scripts/deployStaking.ts --network legacy",
     "deploy:staking:testnet": "hardhat run scripts/deployStaking.ts --network neoxTestnet",
-    "deploy:staking:mainnet": "hardhat run scripts/deployStaking.ts --network neoxMainnet"
+    "deploy:staking:mainnet": "hardhat run scripts/deployStaking.ts --network neoxMainnet",
+    "manage:staking:legacy": "hardhat run scripts/manageStaking.ts --network legacy",
+    "manage:staking:testnet": "hardhat run scripts/manageStaking.ts --network neoxTestnet",
+    "manage:staking:mainnet": "hardhat run scripts/manageStaking.ts --network neoxMainnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "3.1.3",

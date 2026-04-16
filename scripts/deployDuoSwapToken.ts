@@ -27,7 +27,7 @@ async function main() {
   console.log("Total supply:", totalSupply.toString());
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
-  const Token = await ethers.getContractFactory("OnlySwapToken");
+  const Token = await ethers.getContractFactory("DuoSwapToken");
   const token = await Token.deploy(totalSupply, treasury, owner, overrides);
   await token.waitForDeployment();
 

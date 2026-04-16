@@ -3,6 +3,7 @@ import { ethers } from "hardhat";
 import type {
   EvmTokenDeployer,
   DuoSwapStaking,
+  DuoSwapStakingFactory,
   DuoSwapToken,
   UniswapV2Factory,
   UniswapV2Router02
@@ -10,6 +11,7 @@ import type {
 import {
   EvmTokenDeployer__factory,
   DuoSwapStaking__factory,
+  DuoSwapStakingFactory__factory,
   DuoSwapToken__factory,
   UniswapV2Factory__factory,
   UniswapV2Router02__factory
@@ -129,5 +131,50 @@ describe("Uni2 legacy NeoX smoke", function () {
 
     expect(await staking.rewardPerBlock()).to.be.gt(previousRewardPerBlock);
     expect(await staking.rewardEndBlock()).to.equal((await ethers.provider.getBlockNumber()) + 5);
+  });
+
+  it("creates a new pool with explicit params and starts rewards in one flow", async function () {
+    const [owner, , poolOwner] = await ethers.getSigners();
+
+    const osToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
+      ethers.parseEther("1000000"),
+      owner.address,
+      owner.address
+    );
+    await osToken.waitForDeployment();
+    await osToken.initializeAllocation(poolOwner.address);
+
+    const factory: DuoSwapStakingFactory = await new DuoSwapStakingFactory__factory(owner).deploy(owner.address);
+    await factory.waitForDeployment();
+
+    const rewardAmount = ethers.parseEther("100");
+    await osToken.approve(await factory.getAddress(), rewardAmount);
+
+    const tx = await factory.createPoolWithRewards(
+      await osToken.getAddress(),
+      await osToken.getAddress(),
+      poolOwner.address,
+      rewardAmount,
+      10n
+    );
+    const receipt = await tx.wait();
+    const poolCreatedLog = receipt!.logs
+      .map((log) => {
+        try {
+          return factory.interface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((parsed) => parsed?.name === "PoolCreated");
+
+    const stakingAddress = poolCreatedLog!.args.staking as string;
+    const staking = DuoSwapStaking__factory.connect(stakingAddress, owner);
+
+    expect(await staking.lpToken()).to.equal(await osToken.getAddress());
+    expect(await staking.rewardToken()).to.equal(await osToken.getAddress());
+    expect(await staking.owner()).to.equal(poolOwner.address);
+    expect(await staking.rewardsStarted()).to.equal(true);
+    expect(await staking.rewardEndBlock()).to.equal((await ethers.provider.getBlockNumber()) + 10);
   });
 });

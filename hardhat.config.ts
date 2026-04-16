@@ -51,11 +51,15 @@ const config: HardhatUserConfig = {
         version: "0.6.6",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
-      "contracts/OnlySwapToken.sol": {
+      "contracts/DuoSwapToken.sol": {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
-      "contracts/OnlySwapStaking.sol": {
+      "contracts/DuoSwapStaking.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 } }
+      },
+      "contracts/DuoSwapStakingFactory.sol": {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },

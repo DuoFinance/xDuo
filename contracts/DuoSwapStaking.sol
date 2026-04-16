@@ -74,9 +74,10 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Funds a brand new pool and starts the reward emission in a single tx.
+     * @dev Funds this staking pool and starts the reward emission in a single tx.
+     * In this single-pool contract, pool parameters are fixed at deployment time.
      */
-    function addRewardsForNewPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+    function fundAndStartRewards(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
         require(!rewardsStarted, "STAKING: STARTED");
         _addRewards(amount, rewardBlocks, true);
     }
@@ -84,6 +85,22 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     /**
      * @dev Adds reward tokens to an existing pool and recalculates the reward schedule
      * using the undistributed rewards plus the newly funded amount.
+     */
+    function addRewards(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+        require(rewardsStarted, "STAKING: NOT_STARTED");
+        _addRewards(amount, rewardBlocks, false);
+    }
+
+    /**
+     * @dev Backward-compatible wrapper. Kept to avoid breaking existing integrations.
+     */
+    function addRewardsForNewPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+        require(!rewardsStarted, "STAKING: STARTED");
+        _addRewards(amount, rewardBlocks, true);
+    }
+
+    /**
+     * @dev Backward-compatible wrapper. Kept to avoid breaking existing integrations.
      */
     function addRewardsForExistingPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
         require(rewardsStarted, "STAKING: NOT_STARTED");
