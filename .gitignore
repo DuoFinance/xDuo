@@ -5,3 +5,6 @@ coverage
 typechain-types/
 artifacts/
 cache/
+lib/
+out/
+cache_forge/
