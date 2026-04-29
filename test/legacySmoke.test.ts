@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import type {
-  EvmTokenDeployer,
+  DuoTokenDeployer,
   DuoSwapStaking,
   DuoSwapStakingFactory,
   DuoSwapToken,
@@ -9,7 +9,7 @@ import type {
   UniswapV2Router02
 } from "../typechain-types";
 import {
-  EvmTokenDeployer__factory,
+  DuoTokenDeployer__factory,
   DuoSwapStaking__factory,
   DuoSwapStakingFactory__factory,
   DuoSwapToken__factory,
@@ -59,7 +59,7 @@ describe("Uni2 legacy NeoX smoke", function () {
     expect(await staking.totalStaked()).to.equal(ethers.parseEther("100"));
     expect(await staking.pendingReward(user.address)).to.be.gt(0n);
 
-    const tokenDeployer: EvmTokenDeployer = await new EvmTokenDeployer__factory(owner).deploy();
+    const tokenDeployer: DuoTokenDeployer = await new DuoTokenDeployer__factory(owner).deploy();
     await tokenDeployer.waitForDeployment();
 
     await tokenDeployer.deployToken(
@@ -159,14 +159,14 @@ describe("Uni2 legacy NeoX smoke", function () {
     );
     const receipt = await tx.wait();
     const poolCreatedLog = receipt!.logs
-      .map((log) => {
+      .map((log:any) => {
         try {
           return factory.interface.parseLog(log);
         } catch {
           return null;
         }
       })
-      .find((parsed) => parsed?.name === "PoolCreated");
+      .find((parsed:any) => parsed?.name === "PoolCreated");
 
     const stakingAddress = poolCreatedLog!.args.staking as string;
     const staking = DuoSwapStaking__factory.connect(stakingAddress, owner);
