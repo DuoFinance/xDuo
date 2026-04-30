@@ -10,6 +10,7 @@ import "./DuoSwapStaking.sol";
 /**
  * @title DuoSwapStakingFactory
  * @dev Deploys single-pool staking contracts and can optionally fund/start rewards at creation time.
+ * Does not support Fee-on-Transfer (FoT) reward tokens.
  */
 contract DuoSwapStakingFactory is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -50,7 +51,10 @@ contract DuoSwapStakingFactory is Ownable, ReentrancyGuard {
         address stakingAddress = address(staking);
 
         IERC20 rewardTokenContract = IERC20(rewardToken);
+        uint256 balanceBefore = rewardTokenContract.balanceOf(address(this));
         rewardTokenContract.safeTransferFrom(msg.sender, address(this), rewardAmount);
+        uint256 fundedAmount = rewardTokenContract.balanceOf(address(this)) - balanceBefore;
+        require(fundedAmount == rewardAmount, "FACTORY: FOT_NOT_SUPPORTED");
         rewardTokenContract.forceApprove(stakingAddress, rewardAmount);
 
         staking.fundAndStartRewards(rewardAmount, rewardBlocks);

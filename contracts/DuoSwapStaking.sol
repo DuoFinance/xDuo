@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * @title DuoSwapStaking
  * @dev Single pool staking contract for DuoSwap ecosystem.
  * Refactored for maximum security using OpenZeppelin standards.
- * Supports Fee-on-Transfer (FoT) tokens for staking.
+ * This contract does NOT support Fee-on-Transfer (FoT) tokens.
  */
 contract DuoSwapStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -138,11 +138,12 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
             uint256 balanceBefore = lpToken.balanceOf(address(this));
             lpToken.safeTransferFrom(msg.sender, address(this), amount);
             uint256 balanceAfter = lpToken.balanceOf(address(this));
-            uint256 actualAmount = balanceAfter - balanceBefore;
-            
-            u.amount += actualAmount;
-            totalStaked += actualAmount;
-            emit Deposit(msg.sender, actualAmount);
+            uint256 receivedAmount = balanceAfter - balanceBefore;
+            require(receivedAmount == amount, "STAKING: FOT_NOT_SUPPORTED");
+
+            u.amount += amount;
+            totalStaked += amount;
+            emit Deposit(msg.sender, amount);
         }
 
         u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
@@ -246,7 +247,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         uint256 balanceBefore = rewardToken.balanceOf(address(this));
         rewardToken.safeTransferFrom(msg.sender, address(this), amount);
         uint256 fundedAmount = rewardToken.balanceOf(address(this)) - balanceBefore;
-        require(fundedAmount > 0, "STAKING: NO_REWARD_RECEIVED");
+        require(fundedAmount == amount, "STAKING: FOT_NOT_SUPPORTED");
 
         uint256 remainingRewards;
         if (rewardsStarted && rewardEndBlock > lastRewardBlock) {
