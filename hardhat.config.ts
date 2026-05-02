@@ -43,6 +43,10 @@ const config: HardhatUserConfig = {
         version: "0.5.16",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
+      "contracts/Weth9.sol": {
+        version: "0.5.16",
+        settings: { optimizer: { enabled: true, runs: 200 } }
+      },
       "contracts/UniswapV2Router01.sol": {
         version: "0.6.6",
         settings: { optimizer: { enabled: true, runs: 200 } }

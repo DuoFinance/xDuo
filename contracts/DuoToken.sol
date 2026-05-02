@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title DuoSwapToken
+ * @title DUO Token
  * @dev Custom ERC20 token for DuoSwap ecosystem with fixed supply and initial allocation split.
  * Refactored using OpenZeppelin standards for maximum security and compliance.
  */
