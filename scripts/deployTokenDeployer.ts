@@ -19,11 +19,11 @@ export async function deployTokenDeployer() {
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
-  const TokenDeployer = await ethers.getContractFactory("EvmTokenDeployer");
+  const TokenDeployer = await ethers.getContractFactory("DuoTokenDeployer");
   const deployerContract = await TokenDeployer.deploy(overrides);
   await deployerContract.waitForDeployment();
 
-  console.log("EvmTokenDeployer:", await deployerContract.getAddress());
+  console.log("DuoTokenDeployer:", await deployerContract.getAddress());
   console.log("Deploy tx:", deployerContract.deploymentTransaction()?.hash ?? "unknown");
 }
 

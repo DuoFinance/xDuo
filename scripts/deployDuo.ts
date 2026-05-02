@@ -15,7 +15,7 @@ async function main() {
     }
   }
 
-  const totalSupply = BigInt(requireEnvByNetwork(hre.network.name, "TOTAL_SUPPLY"));
+  const totalSupply = ethers.parseUnits(requireEnvByNetwork(hre.network.name, "TOTAL_SUPPLY"), 18);
   const treasury = requireEnvByNetwork(hre.network.name, "TREASURY_ADDRESS");
   const owner = getEnvByNetwork(hre.network.name, "TOKEN_OWNER") ?? deployer.address;
 
@@ -24,14 +24,14 @@ async function main() {
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
   console.log("Treasury:", treasury);
   console.log("Owner:", owner);
-  console.log("Total supply:", totalSupply.toString());
+  console.log("Total supply:", ethers.formatUnits(totalSupply, 18));
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
-  const Token = await ethers.getContractFactory("DuoSwapToken");
+  const Token = await ethers.getContractFactory("DuoToken");
   const token = await Token.deploy(totalSupply, treasury, owner, overrides);
   await token.waitForDeployment();
 
-  console.log("DuoSwapToken:", await token.getAddress());
+  console.log("DuoToken:", await token.getAddress());
   console.log("Deploy tx:", token.deploymentTransaction()?.hash ?? "unknown");
 }
 

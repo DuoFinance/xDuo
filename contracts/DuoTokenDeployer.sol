@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-contract EvmMemeToken {
+contract DuoMemeToken {
     string public name;
     string public symbol;
     uint8 public decimals;
@@ -69,7 +69,7 @@ contract EvmMemeToken {
     }
 }
 
-contract EvmTokenDeployer {
+contract DuoTokenDeployer {
     struct TokenInfo {
         address token;
         string name;
@@ -109,7 +109,7 @@ contract EvmTokenDeployer {
         require(decimals_ <= 18, "DEPLOY_DECIMALS_TOO_HIGH");
         require(totalSupply_ > 0, "DEPLOY_SUPPLY_ZERO");
 
-        EvmMemeToken deployed = new EvmMemeToken(
+        DuoMemeToken deployed = new DuoMemeToken(
             name_,
             symbol_,
             decimals_,
