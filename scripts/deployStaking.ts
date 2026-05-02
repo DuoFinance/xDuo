@@ -63,7 +63,7 @@ async function main() {
     console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
 
     if (i === 0 && shouldInitAllocation) {
-      const duoToken = await ethers.getContractAt("DuoSwapToken", duoTokenAddress);
+      const duoToken = await ethers.getContractAt("DuoToken", duoTokenAddress);
       const allocationTx = await duoToken.initializeAllocation(stakingAddress, overrides);
       await allocationTx.wait();
       console.log("initializeAllocation tx:", allocationTx.hash);

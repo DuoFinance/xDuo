@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Custom ERC20 token for DuoSwap ecosystem with fixed supply and initial allocation split.
  * Refactored using OpenZeppelin standards for maximum security and compliance.
  */
-contract DuoSwapToken is ERC20, Ownable {
+contract DuoToken is ERC20, Ownable {
     address public immutable treasury;
     bool public allocationInitialized;
     address public stakingContract;

@@ -2,8 +2,8 @@ import { ethers } from "ethers";
 
 async function getTokenBalance() {
   const provider = new ethers.JsonRpcProvider("http://192.168.147.132:8545");
-  const tokenAddress = "0xf592382308678DF0D08cF7827523EA6fD9cec88F"; 
-  const walletAddress = "0x6407D8268aD97C808Ee33f72f57d3476cd5C3954";
+  const tokenAddress = "0x37EB98a83440B041624DF2c89a2FC4f993d7f5fb"; 
+  const walletAddress = "0x13497D5735Ae6F8eB8B5A4C469CEBeB76e2364b5";
   const abi = [
     "function balanceOf(address owner) view returns (uint256)",
     "function decimals() view returns (uint8)",

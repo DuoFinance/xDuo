@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 
-const FACTORY_ADDRESS = "0xcFFE12Cb1D89D98B91A1e0Ca2f147EAE0064eEE9";
+const FACTORY_ADDRESS = "0x32206320dE47aa694Af784211cfEff2f57761F3e";
 
 const ABIS = [
   "function allPairsLength() external view returns (uint)",

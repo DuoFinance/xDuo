@@ -55,7 +55,7 @@ const config: HardhatUserConfig = {
         version: "0.6.6",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
-      "contracts/DuoSwapToken.sol": {
+      "contracts/DuoToken.sol": {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
@@ -67,7 +67,7 @@ const config: HardhatUserConfig = {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
-      "contracts/EvmTokenDeployer.sol": {
+      "contracts/DuoTokenDeployer.sol": {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
       }
