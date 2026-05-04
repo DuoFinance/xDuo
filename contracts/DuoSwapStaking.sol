@@ -36,8 +36,19 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     event Withdraw(address indexed user, uint256 amount);
     event Claim(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
-    event RewardsStarted(uint256 rewardPerBlock, uint256 startBlock, uint256 endBlock, uint256 totalReward);
-    event RewardsAdded(uint256 addedReward, uint256 rewardPerBlock, uint256 startBlock, uint256 endBlock, uint256 totalReward);
+    event RewardsStarted(
+        uint256 rewardPerBlock,
+        uint256 startBlock,
+        uint256 endBlock,
+        uint256 totalReward
+    );
+    event RewardsAdded(
+        uint256 addedReward,
+        uint256 rewardPerBlock,
+        uint256 startBlock,
+        uint256 endBlock,
+        uint256 totalReward
+    );
 
     constructor(
         address lpToken_,
@@ -52,7 +63,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Starts the reward emission. 
+     * @dev Starts the reward emission.
      * Rewards are funded by the current DUO balance held by this contract.
      */
     function startRewards(uint256 rewardBlocks) external onlyOwner {
@@ -70,14 +81,22 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         lastRewardBlock = block.number;
         rewardEndBlock = block.number + rewardBlocks;
 
-        emit RewardsStarted(perBlock, block.number, rewardEndBlock, rewardBalance);
+        emit RewardsStarted(
+            perBlock,
+            block.number,
+            rewardEndBlock,
+            rewardBalance
+        );
     }
 
     /**
      * @dev Funds this staking pool and starts the reward emission in a single tx.
      * In this single-pool contract, pool parameters are fixed at deployment time.
      */
-    function fundAndStartRewards(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+    function fundAndStartRewards(
+        uint256 amount,
+        uint256 rewardBlocks
+    ) external onlyOwner nonReentrant {
         require(!rewardsStarted, "STAKING: STARTED");
         _addRewards(amount, rewardBlocks, true);
     }
@@ -86,7 +105,10 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
      * @dev Adds reward tokens to an existing pool and recalculates the reward schedule
      * using the undistributed rewards plus the newly funded amount.
      */
-    function addRewards(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+    function addRewards(
+        uint256 amount,
+        uint256 rewardBlocks
+    ) external onlyOwner nonReentrant {
         require(rewardsStarted, "STAKING: NOT_STARTED");
         _addRewards(amount, rewardBlocks, false);
     }
@@ -94,7 +116,10 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     /**
      * @dev Backward-compatible wrapper. Kept to avoid breaking existing integrations.
      */
-    function addRewardsForNewPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+    function addRewardsForNewPool(
+        uint256 amount,
+        uint256 rewardBlocks
+    ) external onlyOwner nonReentrant {
         require(!rewardsStarted, "STAKING: STARTED");
         _addRewards(amount, rewardBlocks, true);
     }
@@ -102,7 +127,10 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     /**
      * @dev Backward-compatible wrapper. Kept to avoid breaking existing integrations.
      */
-    function addRewardsForExistingPool(uint256 amount, uint256 rewardBlocks) external onlyOwner nonReentrant {
+    function addRewardsForExistingPool(
+        uint256 amount,
+        uint256 rewardBlocks
+    ) external onlyOwner nonReentrant {
         require(rewardsStarted, "STAKING: NOT_STARTED");
         _addRewards(amount, rewardBlocks, false);
     }
@@ -111,7 +139,9 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         UserInfo memory u = userInfo[user];
         uint256 _accRewardPerShare = accRewardPerShare;
 
-        if (rewardsStarted && block.number > lastRewardBlock && totalStaked > 0) {
+        if (
+            rewardsStarted && block.number > lastRewardBlock && totalStaked > 0
+        ) {
             uint256 toBlock = _lastRewardBlockApplicable();
             if (toBlock > lastRewardBlock) {
                 uint256 blocks = toBlock - lastRewardBlock;
@@ -119,21 +149,17 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
                 _accRewardPerShare += (reward * 1e12) / totalStaked;
             }
         }
-        return (u.amount * _accRewardPerShare / 1e12) - u.rewardDebt;
+        return ((u.amount * _accRewardPerShare) / 1e12) - u.rewardDebt;
     }
 
     function deposit(uint256 amount) external nonReentrant {
         UserInfo storage u = userInfo[msg.sender];
         _updatePool();
 
-        if (u.amount > 0) {
-            uint256 pending = (u.amount * accRewardPerShare / 1e12) - u.rewardDebt;
-            if (pending > 0) {
-                _safeRewardTransfer(msg.sender, pending);
-                emit Claim(msg.sender, pending);
-            }
-        }
+        uint256 accumulated = (u.amount * accRewardPerShare) / 1e12;
+        uint256 pending = accumulated - u.rewardDebt;
 
+        // ----------  LP ----------
         if (amount > 0) {
             uint256 balanceBefore = lpToken.balanceOf(address(this));
             lpToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -146,41 +172,80 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
             emit Deposit(msg.sender, amount);
         }
 
-        u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
+        // ----------  debt（） ----------
+        uint256 newAccumulated = (u.amount * accRewardPerShare) / 1e12;
+        u.rewardDebt = newAccumulated;
+
+        // ----------  ----------
+        if (pending > 0) {
+            uint256 sent = _safeRewardTransfer(msg.sender, pending);
+
+            // ✅ 
+            if (sent < pending) {
+                u.rewardDebt -= (pending - sent);
+            }
+
+            emit Claim(msg.sender, sent);
+        }
     }
 
     function withdraw(uint256 amount) external nonReentrant {
-        UserInfo storage u = userInfo[msg.sender];
-        require(u.amount >= amount, "STAKING: AMOUNT_TOO_HIGH");
-        _updatePool();
+    UserInfo storage u = userInfo[msg.sender];
+    require(u.amount >= amount, "STAKING: AMOUNT_TOO_HIGH");
 
-        uint256 pending = (u.amount * accRewardPerShare / 1e12) - u.rewardDebt;
-        if (pending > 0) {
-            _safeRewardTransfer(msg.sender, pending);
-            emit Claim(msg.sender, pending);
-        }
+    _updatePool();
 
-        if (amount > 0) {
-            u.amount -= amount;
-            totalStaked -= amount;
-            lpToken.safeTransfer(msg.sender, amount);
-            emit Withdraw(msg.sender, amount);
-        }
+    uint256 accumulated = (u.amount * accRewardPerShare) / 1e12;
+    uint256 pending = accumulated - u.rewardDebt;
 
-        u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
+    // ----------  ----------
+    if (amount > 0) {
+        u.amount -= amount;
+        totalStaked -= amount;
     }
+
+    uint256 newAccumulated = (u.amount * accRewardPerShare) / 1e12;
+    u.rewardDebt = newAccumulated;
+
+    // ----------  ----------
+    if (pending > 0) {
+        uint256 sent = _safeRewardTransfer(msg.sender, pending);
+
+        if (sent < pending) {
+            u.rewardDebt -= (pending - sent);
+        }
+
+        emit Claim(msg.sender, sent);
+    }
+
+    // ----------  LP ----------
+    if (amount > 0) {
+        lpToken.safeTransfer(msg.sender, amount);
+        emit Withdraw(msg.sender, amount);
+    }
+}
 
     function claim() external nonReentrant {
-        UserInfo storage u = userInfo[msg.sender];
-        _updatePool();
-        uint256 pending = (u.amount * accRewardPerShare / 1e12) - u.rewardDebt;
-        if (pending > 0) {
-            _safeRewardTransfer(msg.sender, pending);
-            u.rewardDebt = (u.amount * accRewardPerShare) / 1e12;
-            emit Claim(msg.sender, pending);
-        }
-    }
+    UserInfo storage u = userInfo[msg.sender];
+    _updatePool();
 
+    uint256 accumulated = (u.amount * accRewardPerShare) / 1e12;
+    uint256 pending = accumulated - u.rewardDebt;
+
+    // ----------  debt ----------
+    u.rewardDebt = accumulated;
+
+    // ----------  ----------
+    if (pending > 0) {
+        uint256 sent = _safeRewardTransfer(msg.sender, pending);
+
+        if (sent < pending) {
+            u.rewardDebt -= (pending - sent);
+        }
+
+        emit Claim(msg.sender, sent);
+    }
+}
     function emergencyWithdraw() external nonReentrant {
         UserInfo storage u = userInfo[msg.sender];
         uint256 amount = u.amount;
@@ -197,9 +262,15 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     /**
      * @dev Allows owner to recover leftover rewards after the emission period ends.
      */
-    function recoverEndedRewards(address to, uint256 amount) external onlyOwner nonReentrant {
+    function recoverEndedRewards(
+        address to,
+        uint256 amount
+    ) external onlyOwner nonReentrant {
         require(to != address(0), "STAKING: ZERO_TO");
-        require(rewardsStarted && block.number > rewardEndBlock, "STAKING: NOT_ENDED");
+        require(
+            rewardsStarted && block.number > rewardEndBlock,
+            "STAKING: NOT_ENDED"
+        );
         rewardToken.safeTransfer(to, amount);
     }
 
@@ -230,15 +301,25 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         return block.number < rewardEndBlock ? block.number : rewardEndBlock;
     }
 
-    function _safeRewardTransfer(address to, uint256 amount) internal {
+    function _safeRewardTransfer(
+        address to,
+        uint256 amount
+    ) internal returns (uint256) {
         uint256 bal = rewardToken.balanceOf(address(this));
         uint256 sendAmount = amount > bal ? bal : amount;
+
         if (sendAmount > 0) {
             rewardToken.safeTransfer(to, sendAmount);
         }
+
+        return sendAmount; // ✅ 
     }
 
-    function _addRewards(uint256 amount, uint256 rewardBlocks, bool isNewPool) internal {
+    function _addRewards(
+        uint256 amount,
+        uint256 rewardBlocks,
+        bool isNewPool
+    ) internal {
         require(amount > 0, "STAKING: ZERO_REWARD_AMOUNT");
         require(rewardBlocks > 0, "STAKING: ZERO_BLOCKS");
 
@@ -246,12 +327,15 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
 
         uint256 balanceBefore = rewardToken.balanceOf(address(this));
         rewardToken.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 fundedAmount = rewardToken.balanceOf(address(this)) - balanceBefore;
+        uint256 fundedAmount = rewardToken.balanceOf(address(this)) -
+            balanceBefore;
         require(fundedAmount == amount, "STAKING: FOT_NOT_SUPPORTED");
 
         uint256 remainingRewards;
         if (rewardsStarted && rewardEndBlock > lastRewardBlock) {
-            remainingRewards = (rewardEndBlock - lastRewardBlock) * rewardPerBlock;
+            remainingRewards =
+                (rewardEndBlock - lastRewardBlock) *
+                rewardPerBlock;
         }
 
         uint256 totalReward = isNewPool
@@ -266,9 +350,20 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         rewardEndBlock = block.number + rewardBlocks;
 
         if (isNewPool) {
-            emit RewardsStarted(perBlock, block.number, rewardEndBlock, totalReward);
+            emit RewardsStarted(
+                perBlock,
+                block.number,
+                rewardEndBlock,
+                totalReward
+            );
         } else {
-            emit RewardsAdded(fundedAmount, perBlock, block.number, rewardEndBlock, totalReward);
+            emit RewardsAdded(
+                fundedAmount,
+                perBlock,
+                block.number,
+                rewardEndBlock,
+                totalReward
+            );
         }
     }
 }
