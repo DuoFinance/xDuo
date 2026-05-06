@@ -2,7 +2,7 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
 import { deployTokenDeployer } from "./deployTokenDeployer";
-import { deployWeth } from "./deployWETH";
+// import { deployWeth } from "./deployWETH";
 
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
@@ -28,7 +28,7 @@ async function main() {
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
   console.log("WGAS:", chain.wgasAddress);
 
-  const weth_Address = await deployWeth();
+  // const weth_Address = await deployWeth();
 
   const factoryOverrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
   const routerOverrides = await buildTxOverrides(ethers.provider, chain, 8_000_000n);
@@ -41,7 +41,7 @@ async function main() {
   console.log("Factory tx:", factory.deploymentTransaction()?.hash ?? "unknown");
 
   const Router = await ethers.getContractFactory(ROUTER_FQN);
-  const router = await Router.deploy(factoryAddress, weth_Address, routerOverrides);
+  const router = await Router.deploy(factoryAddress, chain.wgasAddress, routerOverrides);
   await router.waitForDeployment();
   const routerAddress = await router.getAddress();
   console.log("Router:", routerAddress);
