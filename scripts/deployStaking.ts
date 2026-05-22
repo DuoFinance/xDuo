@@ -59,7 +59,7 @@ async function main() {
     await staking.waitForDeployment();
     const stakingAddress = await staking.getAddress();
 
-    console.log(`DuoSwapStaking for ${lpToken}:`, stakingAddress);
+    console.log('DuoSwapStaking for %s:', lpToken, stakingAddress);
     console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
 
     if (i === 0 && shouldInitAllocation) {

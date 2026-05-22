@@ -185,7 +185,7 @@ async function main() {
         ? await staking.fundAndStartRewards(rewardAmount, rewardBlocks, overrides)
         : await staking.addRewards(rewardAmount, rewardBlocks, overrides);
     await tx.wait();
-    console.log(`${action} tx:`, tx.hash);
+    console.log('%s tx:', action, tx.hash);
     return;
   }
 
