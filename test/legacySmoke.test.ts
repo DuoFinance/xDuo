@@ -4,7 +4,7 @@ import type {
   DuoTokenDeployer,
   DuoSwapStaking,
   DuoSwapStakingFactory,
-  DuoSwapToken,
+  DuoToken,
   UniswapV2Factory,
   UniswapV2Router02
 } from "../typechain-types";
@@ -12,7 +12,7 @@ import {
   DuoTokenDeployer__factory,
   DuoSwapStaking__factory,
   DuoSwapStakingFactory__factory,
-  DuoSwapToken__factory,
+  DuoToken__factory,
   UniswapV2Factory__factory,
   UniswapV2Router02__factory
 } from "../typechain-types";
@@ -21,7 +21,7 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("deploys core router plus auxiliary contracts", async function () {
     const [owner, treasury, user] = await ethers.getSigners();
 
-    const duoToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
+    const duoToken: DuoToken = await new DuoToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       treasury.address,
       owner.address
@@ -77,7 +77,7 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("funds and starts rewards for a new pool in one tx", async function () {
     const [owner, treasury] = await ethers.getSigners();
 
-    const osToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
+    const osToken: DuoToken = await new DuoToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       treasury.address,
       owner.address
@@ -104,7 +104,7 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("adds rewards to an existing pool and refreshes the schedule", async function () {
     const [owner, treasury] = await ethers.getSigners();
 
-    const osToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
+    const osToken: DuoToken = await new DuoToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       treasury.address,
       owner.address
@@ -136,7 +136,7 @@ describe("Uni2 legacy NeoX smoke", function () {
   it("creates a new pool with explicit params and starts rewards in one flow", async function () {
     const [owner, , poolOwner] = await ethers.getSigners();
 
-    const osToken: DuoSwapToken = await new DuoSwapToken__factory(owner).deploy(
+    const osToken: DuoToken = await new DuoToken__factory(owner).deploy(
       ethers.parseEther("1000000"),
       owner.address,
       owner.address
