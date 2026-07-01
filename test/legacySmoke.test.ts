@@ -133,6 +133,100 @@ describe("Uni2 legacy NeoX smoke", function () {
     expect(await staking.rewardEndBlock()).to.equal((await ethers.provider.getBlockNumber()) + 5);
   });
 
+  it("deploys bonding curve and executes buy/sell/graduate", async function () {
+    const [owner, user1, user2] = await ethers.getSigners();
+
+    const WETH = await ethers.getContractFactory("WETH9");
+    const weth = await WETH.deploy();
+    await weth.waitForDeployment();
+
+    const factory: UniswapV2Factory = await new UniswapV2Factory__factory(owner).deploy(owner.address);
+    await factory.waitForDeployment();
+
+    const router: UniswapV2Router02 = await new UniswapV2Router02__factory(owner).deploy(
+      await factory.getAddress(),
+      await weth.getAddress()
+    );
+    await router.waitForDeployment();
+
+    const CurveFactory = await ethers.getContractFactory("DuoBondingCurveFactory");
+    const curveFactory = await CurveFactory.deploy();
+    await curveFactory.waitForDeployment();
+
+    // Deploy a curve token
+    // gradient = 1e15, targetReserve = 5 ETH
+    const gradient = ethers.parseEther("0.001");   // 0.001 ETH slope
+    const targetReserve = ethers.parseEther("5");  // 5 ETH target
+    const tx = await curveFactory.deployCurve(
+      "Fair Token",
+      "FAIR",
+      gradient,
+      targetReserve,
+      await router.getAddress(),
+      await factory.getAddress()
+    );
+    const receipt = await tx.wait();
+
+    const deployedLog = receipt!.logs
+      .map((log: any) => {
+        try { return curveFactory.interface.parseLog(log); }
+        catch { return null; }
+      })
+      .find((parsed: any) => parsed?.name === "CurveDeployed");
+
+    const curveAddr = deployedLog!.args.token as string;
+    const curve = await ethers.getContractFactory("DuoBondingCurve").then(f => f.attach(curveAddr));
+
+    expect(await curveFactory.getCurveCount()).to.equal(1n);
+    expect(await curve.name()).to.equal("Fair Token");
+    expect(await curve.symbol()).to.equal("FAIR");
+    expect(await curve.gradient()).to.equal(gradient);
+    expect(await curve.targetReserve()).to.equal(targetReserve);
+    expect(await curve.graduated()).to.equal(false);
+
+    // User1 buys 1 ETH worth
+    await curve.connect(user1).buy({ value: ethers.parseEther("1") });
+    const bal1 = await curve.balanceOf(user1.address);
+    expect(bal1).to.be.gt(0n);
+    expect(await curve.curveReserve()).to.equal(ethers.parseEther("1"));
+
+    // User2 buys 2 ETH worth
+    await curve.connect(user2).buy({ value: ethers.parseEther("2") });
+    const bal2 = await curve.balanceOf(user2.address);
+    expect(bal2).to.be.gt(0n);
+    expect(await curve.curveReserve()).to.equal(ethers.parseEther("3"));
+
+    // Price should be > 0
+    const price = await curve.getPrice();
+    expect(price).to.be.gt(0n);
+
+    // User1 sells half their tokens
+    const sellAmount = bal1 / 2n;
+    const expectedReturn = await curve.getSellReturn(sellAmount);
+    expect(expectedReturn).to.be.gt(0n);
+
+    await curve.connect(user1).sell(sellAmount);
+    expect(await curve.balanceOf(user1.address)).to.equal(bal1 - sellAmount);
+    expect(await curve.curveReserve()).to.be.lt(ethers.parseEther("3"));
+
+    // Buy remaining to hit target (reach 5 ETH reserve)
+    const remaining = ethers.parseEther("5") - await curve.curveReserve();
+    await curve.connect(owner).buy({ value: remaining });
+    expect(await curve.graduated()).to.equal(true);
+    expect(await curve.pair()).to.not.equal(ethers.ZeroAddress);
+    expect(await curve.curveReserve()).to.equal(ethers.parseEther("5"));
+
+    // After graduation, buy should revert
+    await expect(
+      curve.connect(owner).buy({ value: ethers.parseEther("1") })
+    ).to.be.revertedWith("GRADUATED");
+
+    // After graduation, sell should revert
+    await expect(
+      curve.connect(user2).sell(1n)
+    ).to.be.revertedWith("GRADUATED");
+  });
+
   it("creates a new pool with explicit params and starts rewards in one flow", async function () {
     const [owner, , poolOwner] = await ethers.getSigners();
 

@@ -70,6 +70,14 @@ const config: HardhatUserConfig = {
       "contracts/DuoTokenDeployer.sol": {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
+      },
+      "contracts/DuoBondingCurve.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 } }
+      },
+      "contracts/DuoBondingCurveFactory.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 } }
       }
     }
   },
