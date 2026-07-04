@@ -6,7 +6,11 @@ import type {
   DuoSwapStakingFactory,
   DuoToken,
   UniswapV2Factory,
-  UniswapV2Router02
+  UniswapV2Pair,
+  UniswapV2Router02,
+  DuoBondingCurve,
+  Pump,
+  PumpToken
 } from "../typechain-types";
 import {
   DuoTokenDeployer__factory,
@@ -14,7 +18,11 @@ import {
   DuoSwapStakingFactory__factory,
   DuoToken__factory,
   UniswapV2Factory__factory,
-  UniswapV2Router02__factory
+  UniswapV2Pair__factory,
+  UniswapV2Router02__factory,
+  DuoBondingCurve__factory,
+  Pump__factory,
+  PumpToken__factory
 } from "../typechain-types";
 
 describe("Uni2 legacy NeoX smoke", function () {
@@ -175,7 +183,7 @@ describe("Uni2 legacy NeoX smoke", function () {
       .find((parsed: any) => parsed?.name === "CurveDeployed");
 
     const curveAddr = deployedLog!.args.token as string;
-    const curve = await ethers.getContractFactory("DuoBondingCurve").then(f => f.attach(curveAddr));
+    const curve: DuoBondingCurve = DuoBondingCurve__factory.connect(curveAddr, owner);
 
     expect(await curveFactory.getCurveCount()).to.equal(1n);
     expect(await curve.name()).to.equal("Fair Token");
@@ -270,5 +278,143 @@ describe("Uni2 legacy NeoX smoke", function () {
     expect(await staking.owner()).to.equal(poolOwner.address);
     expect(await staking.rewardsStarted()).to.equal(true);
     expect(await staking.rewardEndBlock()).to.equal((await ethers.provider.getBlockNumber()) + 10);
+  });
+
+  it("Pump: full buy/sell/graduate lifecycle with price continuity", async function () {
+    const [owner, user1, user2] = await ethers.getSigners();
+
+    // 1. Deploy Uniswap V2 infrastructure
+    const WETH = await ethers.getContractFactory("WETH9");
+    const weth = await WETH.deploy();
+    await weth.waitForDeployment();
+
+    const factory: UniswapV2Factory = await new UniswapV2Factory__factory(owner).deploy(owner.address);
+    await factory.waitForDeployment();
+
+    const router: UniswapV2Router02 = await new UniswapV2Router02__factory(owner).deploy(
+      await factory.getAddress(),
+      await weth.getAddress()
+    );
+    await router.waitForDeployment();
+
+    // 2. Deploy Pump
+    const pump: Pump = await new Pump__factory(owner).deploy(await router.getAddress());
+    await pump.waitForDeployment();
+
+    // 3. Create sale with P = 80%
+    const graduationBps = 8000;
+    const createTx = await pump.createSale("Pump Token", "PUMP", graduationBps);
+    const createReceipt = await createTx.wait();
+    const createLog = createReceipt!.logs
+      .map((log: any) => { try { return pump.interface.parseLog(log); } catch { return null; } })
+      .find((parsed: any) => parsed?.name === "SaleCreated");
+    const tokenAddr = createLog!.args.token as string;
+
+    const token: PumpToken = PumpToken__factory.connect(tokenAddr, owner);
+
+    // 4. Verify sale info
+    const sale = await pump.getSale(tokenAddr);
+    expect(sale.creator).to.equal(owner.address);
+    expect(sale.totalSupply).to.equal(ethers.parseEther("1000000000"));
+    expect(sale.graduated).to.equal(false);
+
+    expect(await token.name()).to.equal("Pump Token");
+    expect(await token.symbol()).to.equal("PUMP");
+    expect(await token.balanceOf(await pump.getAddress())).to.equal(ethers.parseEther("1000000000"));
+
+    // 5. Buy: user1 sends 2 ETH
+    const buy1 = await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("2") });
+    const buy1Receipt = await buy1.wait();
+    const buy1Log = buy1Receipt!.logs
+      .map((log: any) => { try { return pump.interface.parseLog(log); } catch { return null; } })
+      .find((parsed: any) => parsed?.name === "TokensPurchased");
+    const tokens1 = buy1Log!.args.tokensOut as bigint;
+    expect(tokens1).to.be.gt(0n);
+    expect(await token.balanceOf(user1.address)).to.equal(tokens1);
+
+    const saleAfterBuy1 = await pump.getSale(tokenAddr);
+    expect(saleAfterBuy1.gasRaised).to.equal(ethers.parseEther("2"));
+
+    // 6. Query helper functions
+    const price1 = await pump.getCurrentPrice(tokenAddr);
+    expect(price1).to.be.gt(0n);
+
+    const tokensForGas = await pump.getTokensForGas(tokenAddr, ethers.parseEther("1"));
+    expect(tokensForGas).to.be.gt(0n);
+
+    // 7. Sell: user1 sells 25% of their tokens
+    const sellAmount = tokens1 / 4n;
+    await token.connect(user1).approve(await pump.getAddress(), sellAmount);
+
+    const sellTx = await pump.connect(user1).sell(tokenAddr, sellAmount, 0n);
+    const sellReceipt = await sellTx.wait();
+    const sellLog = sellReceipt!.logs
+      .map((log: any) => { try { return pump.interface.parseLog(log); } catch { return null; } })
+      .find((parsed: any) => parsed?.name === "TokensSold");
+    const gasOut = sellLog!.args.gasOut as bigint;
+    expect(gasOut).to.be.gt(0n);
+
+    expect(await token.balanceOf(user1.address)).to.equal(tokens1 - sellAmount);
+
+    const saleAfterSell = await pump.getSale(tokenAddr);
+    expect(saleAfterSell.tokensSold).to.equal(tokens1 - sellAmount);
+    expect(saleAfterSell.gasRaised).to.equal(ethers.parseEther("2") - gasOut);
+
+    // 8. Owner buys remaining to trigger graduation (over-send to test refund)
+    const saleBeforeGrad = await pump.getSale(tokenAddr);
+    const remainingTarget = saleBeforeGrad.targetRaise - saleBeforeGrad.gasRaised;
+    const ownerEthBefore = await ethers.provider.getBalance(owner.address);
+    // Send remainingTarget + 1 ETH extra to test refund
+    const buyGrad = await pump.connect(owner).buy(tokenAddr, 0n, { value: remainingTarget + ethers.parseEther("1") });
+    const buyGradReceipt = await buyGrad.wait();
+    const buyGradLog = buyGradReceipt!.logs
+      .map((log: any) => { try { return pump.interface.parseLog(log); } catch { return null; } })
+      .find((parsed: any) => parsed?.name === "TokensPurchased");
+
+    // Check owner got a refund (net ETH spent < remainingTarget + 1 ETH)
+    const ownerEthAfter = await ethers.provider.getBalance(owner.address);
+    const ownerEthSpent = ownerEthBefore - ownerEthAfter - buyGradReceipt!.gasUsed * buyGradReceipt!.gasPrice;
+    expect(ownerEthSpent).to.be.lt(remainingTarget + ethers.parseEther("1"));
+
+    // 9. Verify graduation
+    const saleGrad = await pump.getSale(tokenAddr);
+    expect(saleGrad.graduated).to.equal(true);
+
+    // Verify SaleGraduated event is emitted
+    const gradLog = buyGradReceipt!.logs
+      .map((log: any) => { try { return pump.interface.parseLog(log); } catch { return null; } })
+      .find((parsed: any) => parsed?.name === "SaleGraduated");
+    expect(gradLog).to.not.be.undefined;
+    const pairAddr = gradLog!.args.pair as string;
+    expect(pairAddr).to.not.equal(ethers.ZeroAddress);
+    expect(gradLog!.args.tokensForLP).to.be.gt(0n);
+    expect(gradLog!.args.gasForLP).to.equal(saleGrad.gasRaised);
+
+    // 10. Verify LP tokens burned (sent to address(0))
+    const pair: UniswapV2Pair = UniswapV2Pair__factory.connect(pairAddr, owner);
+    const lpBalance = await pair.balanceOf(await pump.getAddress());
+    expect(lpBalance).to.equal(0n); // LP minted to address(0), not to pump
+
+    // 11. Price continuity: BC closing price ≈ Uniswap opening price
+    // BC price  = (vGas + gasRaised) / (vToken - tokensSold)
+    // Uniswap   = gasRaised / (totalSupply - tokensSold)
+    const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
+    const bcGasReserve = saleGrad.virtualGas + saleGrad.gasRaised;
+    const bcTokenReserve = saleGrad.virtualToken - saleGrad.tokensSold;
+    // Cross-multiply: (vGas+gasRaised) * (totalSupply-tokensSold) ≈ gasRaised * (vToken-tokensSold)
+    const lhs = bcGasReserve * tokensForLP;
+    const rhs = saleGrad.gasRaised * bcTokenReserve;
+    const priceDiff = lhs > rhs ? lhs - rhs : rhs - lhs;
+    // Relative error should be negligible (< 0.0001%)
+    expect(priceDiff * 1000000n).to.be.lt(lhs + rhs);
+
+    // 12. Post-graduation operations revert
+    await expect(
+      pump.connect(user2).buy(tokenAddr, 0n, { value: ethers.parseEther("1") })
+    ).to.be.revertedWith("SALE_GRADUATED");
+
+    await expect(
+      pump.connect(user2).sell(tokenAddr, 1n, 0n)
+    ).to.be.revertedWith("SALE_GRADUATED");
   });
 });
