@@ -159,7 +159,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         uint256 accumulated = (u.amount * accRewardPerShare) / 1e12;
         uint256 pending = accumulated - u.rewardDebt;
 
-        // ----------  LP ----------
+        // ---------- Handle LP first ----------
         if (amount > 0) {
             uint256 balanceBefore = lpToken.balanceOf(address(this));
             lpToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -172,15 +172,15 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
             emit Deposit(msg.sender, amount);
         }
 
-        // ----------  debt（） ----------
+        // ---------- Update debt first (critical) ----------
         uint256 newAccumulated = (u.amount * accRewardPerShare) / 1e12;
         u.rewardDebt = newAccumulated;
 
-        // ----------  ----------
+        // ---------- Then send rewards ----------
         if (pending > 0) {
             uint256 sent = _safeRewardTransfer(msg.sender, pending);
 
-            // ✅ 
+            // ✅ Rollback unsent portion
             if (sent < pending) {
                 u.rewardDebt -= (pending - sent);
             }
@@ -198,7 +198,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     uint256 accumulated = (u.amount * accRewardPerShare) / 1e12;
     uint256 pending = accumulated - u.rewardDebt;
 
-    // ----------  ----------
+        // ---------- Update state first ----------
     if (amount > 0) {
         u.amount -= amount;
         totalStaked -= amount;
@@ -207,7 +207,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     uint256 newAccumulated = (u.amount * accRewardPerShare) / 1e12;
     u.rewardDebt = newAccumulated;
 
-    // ----------  ----------
+        // ---------- Send rewards ----------
     if (pending > 0) {
         uint256 sent = _safeRewardTransfer(msg.sender, pending);
 
@@ -218,7 +218,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
         emit Claim(msg.sender, sent);
     }
 
-    // ----------  LP ----------
+        // ---------- Then transfer LP ----------
     if (amount > 0) {
         lpToken.safeTransfer(msg.sender, amount);
         emit Withdraw(msg.sender, amount);
@@ -232,10 +232,10 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
     uint256 accumulated = (u.amount * accRewardPerShare) / 1e12;
     uint256 pending = accumulated - u.rewardDebt;
 
-    // ----------  debt ----------
+        // ---------- Update debt first ----------
     u.rewardDebt = accumulated;
 
-    // ----------  ----------
+        // ---------- Then send rewards ----------
     if (pending > 0) {
         uint256 sent = _safeRewardTransfer(msg.sender, pending);
 
@@ -312,7 +312,7 @@ contract DuoSwapStaking is Ownable, ReentrancyGuard {
             rewardToken.safeTransfer(to, sendAmount);
         }
 
-        return sendAmount; // ✅ 
+        return sendAmount; // ✅ Return actual amount sent
     }
 
     function _addRewards(

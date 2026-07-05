@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title 
-/// @notice CP-AMM (x*y=k)  amountOut 
-/// @dev  pure，
+/// @title Curve math library
+/// @notice CP-AMM (x*y=k) standard amountOut formula
+/// @dev All functions are pure, no chain state reads/writes
 library CurveMath {
-    /* ============ ：amountIn(gas) -> amountOut(token) ============ */
+    /* ============ Buy: amountIn(gas) -> amountOut(token) ============ */
     /// @dev amountOut = reserveOut * amountIn / (reserveIn + amountIn)
     function getAmountOut(
         uint256 reserveIn,
@@ -14,13 +14,13 @@ library CurveMath {
     ) internal pure returns (uint256) {
         require(amountIn > 0, "ZERO_INPUT");
         require(reserveIn > 0 && reserveOut > 0, "INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn; // fee 
+        uint256 amountInWithFee = amountIn; // fee deducted at call site
         uint256 numerator = amountInWithFee * reserveOut;
         uint256 denominator = reserveIn + amountInWithFee;
         return numerator / denominator;
     }
 
-    /* ============ ：amountOut(token) -> amountIn(gas) ============ */
+    /* ============ Reverse Buy: amountOut(token) -> amountIn(gas) ============ */
     /// @dev amountIn = reserveIn * amountOut / (reserveOut - amountOut)
     function getAmountIn(
         uint256 reserveIn,
@@ -31,6 +31,6 @@ library CurveMath {
         require(reserveIn > 0 && reserveOut > amountOut, "INSUFFICIENT_LIQUIDITY");
         uint256 numerator = reserveIn * amountOut;
         uint256 denominator = reserveOut - amountOut;
-        return (numerator / denominator) + 1; // ，
+        return (numerator / denominator) + 1; // round up to protect the curve
     }
 }

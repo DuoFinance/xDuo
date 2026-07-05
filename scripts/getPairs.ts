@@ -17,13 +17,13 @@ async function main() {
 
 
   const totalPairs = Number(await factory.allPairsLength());
-  console.log(`🚀 : ${totalPairs}`);
+  console.log(`🚀 Total pairs detected: ${totalPairs}`);
 
 
   const limit = 10;
   const start = totalPairs > limit ? totalPairs - limit : 0;
 
-  console.log(`---  Index ${start}  ${totalPairs - 1} ---`);
+  console.log(`--- Fetching Index ${start} to ${totalPairs - 1} ---`);
 
   const results = [];
 

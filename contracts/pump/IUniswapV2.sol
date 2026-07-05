@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title IUniswapV2Router -  addLiquidity 
+/// @title IUniswapV2Router - Only exposes the addLiquidity methods we need
 interface IUniswapV2Router {
     function factory() external pure returns (address);
     function WETH() external view returns (address);

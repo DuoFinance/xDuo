@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title PumpToken - pump.fun  ERC20 
-/// @notice  Pump ， 1B，，
-/// @dev  pump.fun  token ， ERC20 + Ownable
+/// @title PumpToken - pump.fun style ERC20 token
+/// @notice Deployed by the Pump main contract, fixed supply of 1B, non-upgradeable, non-mintable
+/// @dev Mirrors pump.fun's token program, standard ERC20 + Ownable
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -18,7 +18,7 @@ contract PumpToken is ERC20, Ownable {
         address owner_
     ) ERC20(name_, symbol_) Ownable(owner_) {
         _decimals = decimals_;
-        //  mint  Pump ，
+        // Mint all supply to Pump main contract for distribution to buyers
         _mint(owner_, totalSupply_);
     }
 

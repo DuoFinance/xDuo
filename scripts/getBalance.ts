@@ -21,11 +21,11 @@ async function getTokenBalance() {
       contract.totalSupply()
     ]);
 
-    console.log(`: ${ethers.formatUnits(balance, decimals)} ${symbol}`);
-    console.log(`: ${ethers.formatUnits(totalSupply, decimals)} ${symbol}`);
+    console.log(`Balance: ${ethers.formatUnits(balance, decimals)} ${symbol}`);
+    console.log(`Total Supply: ${ethers.formatUnits(totalSupply, decimals)} ${symbol}`);
     console.log(`Decimasl: ${decimals}`)
   } catch (error) {
-    console.error("，:", error);
+    console.error("Query failed, please check the contract address:", error);
   }
 }
 
