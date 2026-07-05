@@ -128,7 +128,7 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
         uint256 remainingToGrad = maxTokens - s.tokensSold;
         if (tokensOut > remainingToGrad) {
             tokensOut = remainingToGrad;
-            // Back-calculate actual gas needed
+            // Back-calculate actual gas needed (overwrites the outer gasIn, NOT shadow it)
             gasIn = CurveMath.getAmountIn(gasReserve, tokenReserve, tokensOut);
             // Refund overpaid gas
             uint256 refund = msg.value - gasIn;
