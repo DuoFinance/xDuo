@@ -1,4 +1,3 @@
-// @ts-expect-error hardhat module doesn't export ethers at type level but does at runtime
 import { ethers } from "hardhat";
 
 const PK1 = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
@@ -20,7 +19,7 @@ const eventsIface = new ethers.Interface([
   "event SaleCreated(address indexed creator, address indexed token, string name, string symbol)",
 ]);
 
-async function sale(contract: ethers.Contract, n: string, s: string, b = 8000): Promise<string> {
+async function sale(contract: any, n: string, s: string, b = 8000): Promise<string> {
   const tx = await contract.createSale(n, s, b);
   const rc = await tx.wait();
   for (const l of rc!.logs) {
@@ -31,15 +30,15 @@ async function sale(contract: ethers.Contract, n: string, s: string, b = 8000): 
   throw new Error("SaleCreated not found");
 }
 
-function tok(addr: string, s?: ethers.Signer) {
+function tok(addr: string, s?: any) {
   return new ethers.Contract(addr, [
     "function balanceOf(address) view returns (uint256)",
     "function approve(address,uint256) returns (bool)",
   ], s ?? ethers.provider) as any;
 }
-function mkPump(s: ethers.Signer) { return new ethers.Contract(pumpAddr, ABI, s); }
+function mkPump(s: any) { return new ethers.Contract(pumpAddr, ABI, s); }
 
-async function buy(s: ethers.Signer, l: string, t: string, v: bigint, mo = 0n, f = false) {
+async function buy(s: any, l: string, t: string, v: bigint, mo = 0n, f = false) {
   try {
     const tx = await mkPump(s).buy(t, mo, { value: v, gasLimit: 3_000_000 });
     const r = await tx.wait();
@@ -52,7 +51,7 @@ async function buy(s: ethers.Signer, l: string, t: string, v: bigint, mo = 0n, f
     return false;
   }
 }
-async function sell(s: ethers.Signer, l: string, t: string, a: bigint, f = false) {
+async function sell(s: any, l: string, t: string, a: bigint, f = false) {
   try { const tx = await mkPump(s).sell(t, a, 0n, { gasLimit: 300000 }); await tx.wait(); if(f) _log(FAIL, l); else _log(PASS, l); return true; }
   catch { if(f) _log(PASS, l + " [reverted]"); else _log(FAIL, l); return false; }
 }
@@ -84,7 +83,7 @@ async function main() {
   pumpAddr = await pump.getAddress();
 
   _log(INFO, `Factory=${factoryAddr} Router=${routerAddr} Pump=${pumpAddr}`);
-  const bal = async (w: string, s: ethers.Signer) => _log(INFO, `${w}: ${ethers.formatEther(await ethers.provider.getBalance(s.address))}`);
+  const bal = async (w: string, s: any) => _log(INFO, `${w}: ${ethers.formatEther(await ethers.provider.getBalance(s.address))}`);
   await bal("Deployer", deployer); await bal("Attacker", attacker); await bal("Victim", victim);
 
   const P = mkPump(deployer), PA = mkPump(attacker), PV = mkPump(victim);
@@ -156,7 +155,7 @@ async function main() {
     await sell(attacker, "Attacker dumps all", t4, ab);
     const [,,, g4, tr4,,,,] = await P.getSale(t4);
     _log(INFO, `gasRaised: ${ethers.formatEther(g4)} / ${ethers.formatEther(tr4)}`);
-    if (tr4 > g4) await buy(victim, "Graduation buy", t4, tr4 - g4 + ONE * 10n);
+    if (tr4 > g4) await buy(victim, "Graduation buy", t4, BigInt(tr4) - BigInt(g4) + ethers.parseEther("10"));
     else _log(WARN, "Already at/over target");
     const [,,,,,,,, grad4] = await P.getSale(t4);
     grad4 ? _log(PASS, "Graduated") : _log(FAIL, "Not graduated");
@@ -198,7 +197,7 @@ async function main() {
     await sell(victim, "Partial sell", t7, vb / 2n);
     const [,,, g7, tr7,,,,] = await P.getSale(t7);
     _log(INFO, `gasRaised: ${ethers.formatEther(g7)}/${ethers.formatEther(tr7)}`);
-    if (tr7 > g7) await buy(victim, "Final buy to graduate", t7, tr7 - g7 + ONE * 10n);
+    if (tr7 > g7) await buy(victim, "Final buy to graduate", t7, BigInt(tr7) - BigInt(g7) + ethers.parseEther("10"));
     const [,,,,,,,, g7b] = await P.getSale(t7);
     g7b ? _log(PASS, "Lifecycle complete") : _log(FAIL, "Not graduated");
     const p7 = await factoryC.getPair(t7, wgasAddr);
