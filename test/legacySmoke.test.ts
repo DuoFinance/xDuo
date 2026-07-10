@@ -298,12 +298,12 @@ describe("Uni2 legacy NeoX smoke", function () {
     await router.waitForDeployment();
 
     // 2. Deploy Pump
-    const pump: Pump = await new Pump__factory(owner).deploy(await router.getAddress());
+    const pump: Pump = await new Pump__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
     await pump.waitForDeployment();
 
     // 3. Create sale with P = 80%
     const graduationBps = 8000;
-    const createTx = await pump.createSale("Pump Token", "PUMP", graduationBps);
+    const createTx = await pump.createSale("Pump Token", "PUMP", graduationBps, ethers.parseEther("1000"));
     const createReceipt = await createTx.wait();
     const createLog = createReceipt!.logs
       .map((log: any) => { try { return pump.interface.parseLog(log); } catch { return null; } })

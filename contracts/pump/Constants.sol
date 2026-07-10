@@ -14,10 +14,10 @@ library Constants {
     /// @dev Graduation ratio P range: 50% ~ 80% (bps)
     /// P > 50% ensures VirtualGas/VirtualToken are positive
     uint256 constant MIN_GRADUATION_BPS = 5000;
-    uint256 constant MAX_GRADUATION_BPS = 8000;
+    uint256 constant MAX_GRADUATION_BPS = 9900;
     uint256 constant BPS_DENOMINATOR   = 10000;
 
-    /* ============ Graduation Target Gas ============ */
-    /// @dev pump.fun raises 85 SOL to graduate, targeting 1000 GAS here
-    uint256 constant TARGET_RAISE = 1000 ether;
+    /* ============ Uniswap V2 CREATE2 Parameters ============ */
+    /// @dev Uniswap V2 pair initialization code hash (matches local UniswapV2Library)
+    bytes32 constant INIT_CODE_PAIR_HASH = 0xbbbb25d7dbd3ac53985ee4587c020269570d6f99ec2613ae13fe973a2ffbf2f5;
 }

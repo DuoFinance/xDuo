@@ -33,10 +33,10 @@ describe("Pump Invariants & Boundary Tests", function () {
     );
     await router.waitForDeployment();
 
-    pump = await new Pump__factory(owner).deploy(await router.getAddress());
+    pump = await new Pump__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
     await pump.waitForDeployment();
 
-    const tx = await pump.createSale("T", "T", graduationBps);
+    const tx = await pump.createSale("T", "T", graduationBps, ethers.parseEther("1000"));
     const rc = await tx.wait();
     const log = rc!.logs
       .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
@@ -293,23 +293,23 @@ describe("Pump Invariants & Boundary Tests", function () {
       const Router = await ethers.getContractFactory("UniswapV2Router02");
       const r = await Router.deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await r.waitForDeployment();
-      const p = await new Pump__factory(o).deploy(await r.getAddress());
+      const p = await new Pump__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 5000)).to.be.revertedWith("INVALID_GRADUATION");
+      await expect(p.createSale("X", "X", 5000, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION");
     });
 
     it("reverts P < 5000", async function () {
       const [o] = await ethers.getSigners();
-      const p = await new Pump__factory(o).deploy(ethers.ZeroAddress);
+      const p = await new Pump__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 4999)).to.be.revertedWith("INVALID_GRADUATION_MIN");
+      await expect(p.createSale("X", "X", 4999, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MIN");
     });
 
-    it("reverts P > 8000", async function () {
+    it("reverts P > 9900", async function () {
       const [o] = await ethers.getSigners();
-      const p = await new Pump__factory(o).deploy(ethers.ZeroAddress);
+      const p = await new Pump__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 8001)).to.be.revertedWith("INVALID_GRADUATION_MAX");
+      await expect(p.createSale("X", "X", 9901, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MAX");
     });
 
     it("accepts P = 5001 (minimum valid)", async function () {
@@ -320,12 +320,12 @@ describe("Pump Invariants & Boundary Tests", function () {
       expect(s.graduationBps).to.equal(5001);
     });
 
-    it("accepts P = 8000 (maximum valid)", async function () {
-      await deploy(8000);
+    it("accepts P = 9900 (maximum valid)", async function () {
+      await deploy(9900);
       const s = await pump.getSale(tokenAddr);
       expect(s.virtualGas).to.be.gt(0n);
       expect(s.virtualToken).to.be.gt(0n);
-      expect(s.graduationBps).to.equal(8000);
+      expect(s.graduationBps).to.equal(9900);
     });
   });
 

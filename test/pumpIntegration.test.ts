@@ -44,12 +44,12 @@ describe("Pump × Uniswap V2 Router Integration", function () {
     );
     await router.waitForDeployment();
 
-    pump = await new Pump__factory(owner).deploy(await router.getAddress());
+    pump = await new Pump__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
     await pump.waitForDeployment();
   }
 
   async function createSale() {
-    const tx = await pump.createSale("Pump Token", "PUMP", GRADUATION_BPS);
+    const tx = await pump.createSale("Pump Token", "PUMP", GRADUATION_BPS, ethers.parseEther("1000"));
     const receipt = await tx.wait();
     const log = receipt!.logs
       .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
@@ -298,7 +298,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       await deployInfra();
       // Create sale with P = 5001 bps (minimum valid)
       const minBps = 5001;
-      const tx = await pump.createSale("Min Grad", "MIN", minBps);
+      const tx = await pump.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"));
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })

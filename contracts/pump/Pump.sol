@@ -10,7 +10,6 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./IPump.sol";
 import "./Constants.sol";
@@ -18,7 +17,7 @@ import "./CurveMath.sol";
 import "./PumpToken.sol";
 import "./IUniswapV2.sol";
 
-contract Pump is IPump, ReentrancyGuard, Ownable {
+contract Pump is IPump, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /* ============ Data Structures ============ */
@@ -37,7 +36,8 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
 
     /* ============ State ============ */
     mapping(address => SaleInfo) private sales;
-    IUniswapV2Router public immutable uniswapRouter;
+    address public immutable uniswapFactory;
+    address public immutable weth;
 
     /* ============ Modifiers ============ */
     modifier saleActive(address token) {
@@ -48,9 +48,11 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
     }
 
     /* ============ Constructor ============ */
-    /// @param uniswapRouter_ Uniswap V2 Router address
-    constructor(address uniswapRouter_) Ownable(msg.sender) {
-        uniswapRouter = IUniswapV2Router(uniswapRouter_);
+    /// @param uniswapFactory_ Uniswap V2 Factory address
+    /// @param weth_ WETH address
+    constructor(address uniswapFactory_, address weth_) {
+        uniswapFactory = uniswapFactory_;
+        weth = weth_;
     }
 
     /* ============ Create Sale ============ */
@@ -58,10 +60,12 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
     function createSale(
         string calldata name,
         string calldata symbol,
-        uint256 graduationBps
+        uint256 graduationBps,
+        uint256 targetRaise
     ) external returns (address token) {
         require(graduationBps >= Constants.MIN_GRADUATION_BPS, "INVALID_GRADUATION_MIN");
         require(graduationBps <= Constants.MAX_GRADUATION_BPS, "INVALID_GRADUATION_MAX");
+        require(targetRaise > 0, "INVALID_TARGET_RAISE");
 
         // Deploy token, all supply goes to this contract
         token = address(new PumpToken(
@@ -80,15 +84,15 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
         require(twoPminusOne > 0, "INVALID_GRADUATION");
 
         uint256 pSquared = p * p;
-        uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / Constants.BPS_DENOMINATOR / twoPminusOne;
-        uint256 vGas   = Constants.TARGET_RAISE * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
+        uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / (Constants.BPS_DENOMINATOR * twoPminusOne);
+        uint256 vGas   = targetRaise * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
 
         sales[token] = SaleInfo({
             creator: msg.sender,
             totalSupply: Constants.TOTAL_SUPPLY,
             tokensSold: 0,
             gasRaised: 0,
-            targetRaise: Constants.TARGET_RAISE,
+            targetRaise: targetRaise,
             virtualGas: vGas,
             virtualToken: vToken,
             graduationBps: p,
@@ -126,28 +130,29 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
         // 3. Prevent buying all before graduation, cap at graduation point (P * T)
         uint256 maxTokens = s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
         uint256 remainingToGrad = maxTokens - s.tokensSold;
+        uint256 refund = 0;
         if (tokensOut > remainingToGrad) {
             tokensOut = remainingToGrad;
-            // Back-calculate actual gas needed (overwrites the outer gasIn, NOT shadow it)
             gasIn = CurveMath.getAmountIn(gasReserve, tokenReserve, tokensOut);
-            // Refund overpaid gas
-            uint256 refund = msg.value - gasIn;
-            if (refund > 0) {
-                (bool ok, ) = msg.sender.call{value: refund}("");
-                require(ok, "REFUND_FAILED");
-            }
+            refund = msg.value - gasIn;
         }
 
-        // 4. Update state
+        // 4. Update state (Checks-Effects-Interactions: state changes before external calls)
         s.tokensSold += tokensOut;
         s.gasRaised  += gasIn;
 
         // 5. Transfer tokens to buyer
         IERC20(token).safeTransfer(msg.sender, tokensOut);
 
+        // 6. Refund overpaid gas (after state changes)
+        if (refund > 0) {
+            (bool ok, ) = msg.sender.call{value: refund}("");
+            require(ok, "REFUND_FAILED");
+        }
+
         emit TokensPurchased(msg.sender, token, gasIn, tokensOut);
 
-        // 6. Check if graduated
+        // 7. Check if graduated
         if (s.gasRaised >= s.targetRaise) {
             _graduate(token);
         }
@@ -194,6 +199,7 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
     ///   - All raised gas goes into the pool
     ///   - LP token sent to burn address (address(0)), ownership renounced
     ///   - No burn, virtual pool amplification ensures smooth price transition
+    ///   - Bypasses Router to avoid front-running DoS via slippage checks
     function _graduate(address token) internal {
         SaleInfo storage s = sales[token];
         s.graduated = true;
@@ -203,25 +209,33 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
         uint256 gasForLP = s.gasRaised;
         require(gasForLP > 0, "NO_GAS_FOR_LP");
 
-        // Approve Router to handle token
-        IERC20(token).approve(address(uniswapRouter), tokensForLP);
+        // Ensure pair exists (createPair is idempotent)
+        IUniswapV2Factory(uniswapFactory).createPair(token, weth);
 
-        // Add liquidity via addLiquidityETH
-        uint256 deadline = block.timestamp + 3600;
-        (uint256 amountTokenUsed, uint256 amountGasUsed, ) =
-            uniswapRouter.addLiquidityETH{value: gasForLP}(
-                token,
-                tokensForLP,
-                tokensForLP,    // amountTokenMin
-                gasForLP,       // amountGasMin
-                address(0),     // LP token sent to burn address
-                deadline
-            );
+        // Compute pair address via CREATE2
+        address token0 = token < weth ? token : weth;
+        address token1 = token < weth ? weth : token;
+        bytes32 salt = keccak256(abi.encodePacked(token0, token1));
+        address pair = address(uint160(uint256(keccak256(abi.encodePacked(
+            hex"ff",
+            uniswapFactory,
+            salt,
+            Constants.INIT_CODE_PAIR_HASH
+        )))));
 
-        address pair = IUniswapV2Factory(IUniswapV2Router(uniswapRouter).factory()).getPair(token, uniswapRouter.WETH());
         s.pair = pair;
 
-        emit SaleGraduated(token, pair, amountTokenUsed, amountGasUsed);
+        // 1. Wrap ETH to WETH
+        IWETH(weth).deposit{value: gasForLP}();
+
+        // 2. Transfer token and WETH to pair
+        IERC20(token).safeTransfer(pair, tokensForLP);
+        IWETH(weth).transfer(pair, gasForLP);
+
+        // 3. Mint LP tokens to burn address
+        IUniswapV2Pair(pair).mint(address(0));
+
+        emit SaleGraduated(token, pair, tokensForLP, gasForLP);
     }
 
     /* ============ Queries ============ */
@@ -274,6 +288,9 @@ contract Pump is IPump, ReentrancyGuard, Ownable {
         return CurveMath.getAmountOut(tokenReserve, gasReserve, tokenAmount);
     }
 
-    /* ============ Receive gas ============ */
-    receive() external payable {}
+    /* ============ Receive ============ */
+    /// @dev No receive needed - buy() handles ETH, graduation wraps ETH to WETH directly
+    receive() external payable {
+        revert("USE_BUY_FUNCTION");
+    }
 }
