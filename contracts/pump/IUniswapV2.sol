@@ -10,6 +10,7 @@ interface IUniswapV2Factory {
 interface IUniswapV2Pair {
     function mint(address to) external returns (uint256 liquidity);
     function totalSupply() external view returns (uint256);
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 }
 
 interface IWETH {

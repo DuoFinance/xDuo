@@ -17,7 +17,4 @@ library Constants {
     uint256 constant MAX_GRADUATION_BPS = 9900;
     uint256 constant BPS_DENOMINATOR   = 10000;
 
-    /* ============ Uniswap V2 CREATE2 Parameters ============ */
-    /// @dev Uniswap V2 pair initialization code hash (matches local UniswapV2Library)
-    bytes32 constant INIT_CODE_PAIR_HASH = 0xbbbb25d7dbd3ac53985ee4587c020269570d6f99ec2613ae13fe973a2ffbf2f5;
 }

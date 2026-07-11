@@ -80,8 +80,8 @@ contract Pump is IPump, ReentrancyGuard {
         // vToken = T * p² / BPS_DENOM / (2p - BPS_DENOM)
         // vGas   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
         uint256 p = graduationBps;
+        require(2 * p > Constants.BPS_DENOMINATOR, "INVALID_GRADUATION");
         uint256 twoPminusOne = 2 * p - Constants.BPS_DENOMINATOR;
-        require(twoPminusOne > 0, "INVALID_GRADUATION");
 
         uint256 pSquared = p * p;
         uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / (Constants.BPS_DENOMINATOR * twoPminusOne);
@@ -152,8 +152,8 @@ contract Pump is IPump, ReentrancyGuard {
 
         emit TokensPurchased(msg.sender, token, gasIn, tokensOut);
 
-        // 7. Check if graduated
-        if (s.gasRaised >= s.targetRaise) {
+        // 7. Check if graduated (gas target reached OR all graduation tokens sold)
+        if (s.gasRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
             _graduate(token);
         }
     }
@@ -169,22 +169,22 @@ contract Pump is IPump, ReentrancyGuard {
         SaleInfo storage s = sales[token];
         require(tokensIn > 0, "ZERO_TOKENS");
 
-        // 1. Transfer tokens from seller
-        IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
-
-        // 2. Calculate current virtual reserves
+        // 1. Calculate current virtual reserves
         uint256 gasReserve   = s.virtualGas + s.gasRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
 
-        // 3. Calculate gas due
+        // 2. Calculate gas due
         gasOut = CurveMath.getAmountOut(tokenReserve, gasReserve, tokensIn);
         require(gasOut > 0, "ZERO_GAS");
         require(gasOut >= minGasOut, "SLIPPAGE");
         require(gasOut <= s.gasRaised, "INSUFFICIENT_GAS");
 
-        // 4. Update state
+        // 3. Update state (Checks-Effects-Interactions: state before external calls)
         s.tokensSold -= tokensIn;
         s.gasRaised  -= gasOut;
+
+        // 4. Transfer tokens from seller
+        IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
 
         // 5. Transfer gas to seller
         (bool ok, ) = msg.sender.call{value: gasOut}("");
@@ -209,19 +209,13 @@ contract Pump is IPump, ReentrancyGuard {
         uint256 gasForLP = s.gasRaised;
         require(gasForLP > 0, "NO_GAS_FOR_LP");
 
-        // Ensure pair exists (createPair is idempotent)
-        IUniswapV2Factory(uniswapFactory).createPair(token, weth);
-
-        // Compute pair address via CREATE2
-        address token0 = token < weth ? token : weth;
-        address token1 = token < weth ? weth : token;
-        bytes32 salt = keccak256(abi.encodePacked(token0, token1));
-        address pair = address(uint160(uint256(keccak256(abi.encodePacked(
-            hex"ff",
-            uniswapFactory,
-            salt,
-            Constants.INIT_CODE_PAIR_HASH
-        )))));
+        // Ensure pair exists (createPair reverts if pair already exists)
+        address pair = IUniswapV2Factory(uniswapFactory).getPair(token, weth);
+        if (pair == address(0)) {
+            IUniswapV2Factory(uniswapFactory).createPair(token, weth);
+            pair = IUniswapV2Factory(uniswapFactory).getPair(token, weth);
+        }
+        require(pair != address(0), "PAIR_NOT_CREATED");
 
         s.pair = pair;
 
@@ -230,9 +224,9 @@ contract Pump is IPump, ReentrancyGuard {
 
         // 2. Transfer token and WETH to pair
         IERC20(token).safeTransfer(pair, tokensForLP);
-        IWETH(weth).transfer(pair, gasForLP);
+        IERC20(weth).safeTransfer(pair, gasForLP);
 
-        // 3. Mint LP tokens to burn address
+        // 3. Mint LP tokens to burn address (locks liquidity permanently)
         IUniswapV2Pair(pair).mint(address(0));
 
         emit SaleGraduated(token, pair, tokensForLP, gasForLP);
@@ -252,6 +246,7 @@ contract Pump is IPump, ReentrancyGuard {
         bool    graduated
     ) {
         SaleInfo storage s = sales[token];
+        require(s.creator != address(0), "SALE_NOT_EXIST");
         return (s.creator, s.totalSupply, s.tokensSold, s.gasRaised,
                 s.targetRaise, s.virtualGas, s.virtualToken, s.graduationBps, s.graduated);
     }

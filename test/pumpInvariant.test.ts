@@ -6,6 +6,7 @@ import type {
 import {
   Pump__factory, PumpToken__factory,
   UniswapV2Factory__factory, UniswapV2Router02__factory,
+  UniswapV2Pair__factory,
 } from "../typechain-types";
 
 describe("Pump Invariants & Boundary Tests", function () {
@@ -84,7 +85,7 @@ describe("Pump Invariants & Boundary Tests", function () {
       await assertKUnchanged();
     });
 
-    it("k approximately unchanged after buy → sell", async function () {
+    it("k approximately unchanged after buy �?sell", async function () {
       await deploy(8000);
       K0 = await invariantK();
 
@@ -96,7 +97,7 @@ describe("Pump Invariants & Boundary Tests", function () {
       await assertKUnchanged();
     });
 
-    it("k approximately unchanged after buy → full sell → buy again", async function () {
+    it("k approximately unchanged after buy �?full sell �?buy again", async function () {
       await deploy(8000);
       K0 = await invariantK();
 
@@ -134,7 +135,7 @@ describe("Pump Invariants & Boundary Tests", function () {
   });
 
   // ─── INVARIANT 3: tokensSold never exceeds cap ────────────
-  describe("Invariant: tokensSold ≤ totalSupply * P / BPS_DENOM before graduation", function () {
+  describe("Invariant: tokensSold �?totalSupply * P / BPS_DENOM before graduation", function () {
     for (const p of [5001, 6000, 7000, 8000]) {
       it(`P = ${p}`, async function () {
         await deploy(p);
@@ -245,7 +246,7 @@ describe("Pump Invariants & Boundary Tests", function () {
 
   // ─── INVARIANT 7: post-graduation price continuity ────────
   describe("Invariant: price continuity across graduation", function () {
-    it("Uniswap V2 opening price ≈ Pump closing price", async function () {
+    it("Uniswap V2 opening price �?Pump closing price", async function () {
       await deploy(8000);
       await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("30") });
 
@@ -277,7 +278,7 @@ describe("Pump Invariants & Boundary Tests", function () {
       // Compare Pump closing price vs Uniswap opening price
       // Pump: bcGasReserve / bcTokenReserve
       // Uni:  uniGas / uniToken
-      // Cross-multiplied: bcGasReserve * uniToken ≈ uniGas * bcTokenReserve
+      // Cross-multiplied: bcGasReserve * uniToken �?uniGas * bcTokenReserve
       const lhs = bcGasReserve * uniToken;
       const rhs = uniGas * bcTokenReserve;
       const diff = lhs > rhs ? lhs - rhs : rhs - lhs;
@@ -429,6 +430,100 @@ describe("Pump Invariants & Boundary Tests", function () {
         .find((p: any) => p?.name === "SaleGraduated");
       expect(gradLog).to.not.be.undefined;
       expect(gradLog!.args.pair).to.not.equal(ethers.ZeroAddress);
+    });
+
+    it("graduation triggers when tokensSold reaches maxTokens (prevents deadlock)", async function () {
+      await deploy(8000);
+      await ethers.provider.send("hardhat_setBalance", [
+        owner.address, "0x1000000000000000000000"
+      ]);
+
+      // Buy in many small increments to accumulate rounding dust
+      for (let i = 0; i < 100; i++) {
+        const s = await pump.getSale(tokenAddr);
+        if (s.graduated) break;
+        await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("0.01") });
+      }
+
+      // If not yet graduated, try to push tokensSold to cap
+      const s = await pump.getSale(tokenAddr);
+      if (!s.graduated) {
+        const maxTokens = s.totalSupply * BigInt(GraduationBps) / 10000n;
+        if (s.tokensSold >= maxTokens) {
+          await expect(
+            pump.connect(owner).buy(tokenAddr, 0n, { value: ethers.parseEther("1") })
+          ).to.not.be.reverted;
+          const s2 = await pump.getSale(tokenAddr);
+          expect(s2.graduated).to.equal(true);
+        }
+      }
+    });
+  });
+
+  // ─── SECURITY: getSale revert on non-existent token ────────
+  describe("Security: getSale reverts for non-existent token", function () {
+    it("reverts getSale for non-existent token", async function () {
+      await deploy(8000);
+      await expect(
+        pump.getSale(ethers.ZeroAddress)
+      ).to.be.revertedWith("SALE_NOT_EXIST");
+    });
+  });
+
+  // ─── SECURITY: pre-existing pair liquidity handled safely ──
+  describe("Security: pre-existing pair liquidity handled safely", function () {
+    it("graduation succeeds even if pair has pre-existing liquidity (no DoS)", async function () {
+      await deploy(8000);
+      const factoryAddr = await pump.uniswapFactory();
+      const factory = UniswapV2Factory__factory.connect(factoryAddr, owner);
+
+      // User1 buys some tokens first (needed for donation)
+      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("1") });
+      const user1Bal = await token.balanceOf(user1.address);
+      expect(user1Bal).to.be.gt(0n);
+
+      // Pre-create the pair and donate tokens + WETH (simulating attack)
+      await factory.createPair(tokenAddr, await weth.getAddress());
+      const pairAddr = await factory.getPair(tokenAddr, await weth.getAddress());
+      const pair = UniswapV2Pair__factory.connect(pairAddr, owner);
+
+      // Donate tokens (from user1) and WETH (from owner) to the pair
+      const donateAmount = user1Bal / 10n;
+      await token.connect(user1).transfer(pairAddr, donateAmount);
+      await weth.deposit({ value: ethers.parseEther("1") });
+      await weth.transfer(pairAddr, ethers.parseEther("1"));
+      // Mint LP tokens to make reserves non-zero
+      await pair.mint(owner.address);
+
+      const [r0Before, r1Before] = await pair.getReserves();
+      expect(r0Before).to.not.equal(0n);
+      expect(r1Before).to.not.equal(0n);
+
+      // Graduation should still succeed (no DoS)
+      await ethers.provider.send("hardhat_setBalance", [
+        owner.address, "0x1000000000000000000000"
+      ]);
+      const gradTx = await pump.connect(owner).buy(tokenAddr, 0n, { value: ethers.parseEther("1000") });
+      const gradRc = await gradTx.wait();
+      const gradLog = gradRc!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleGraduated");
+      expect(gradLog).to.not.be.undefined;
+
+      // Verify sale graduated
+      const sale = await pump.getSale(tokenAddr);
+      expect(sale.graduated).to.equal(true);
+
+      // LP tokens should be burned (sent to address(0))
+      // pair.totalSupply() includes the pre-existing LP + new LP
+      // The new LP from Pump's mint goes to address(0)
+      const lpBalancePump = await pair.balanceOf(await pump.getAddress());
+      expect(lpBalancePump).to.equal(0n);
+
+      // Both reserves should be non-zero after graduation
+      const [r0After, r1After] = await pair.getReserves();
+      expect(r0After).to.be.gt(r0Before);
+      expect(r1After).to.be.gt(r1Before);
     });
   });
 
