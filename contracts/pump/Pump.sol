@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
 /// @dev Mirrors pump.fun core logic:
 ///   - Internal bonding curve two-way trading
-///   - Graduates when raised gas reaches TARGET_RAISE
+///   - Graduates when raised gas reaches TARGET_RAISE or p token sold 
 ///   - All remaining tokens + gas go into Uniswap V2 on graduation
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

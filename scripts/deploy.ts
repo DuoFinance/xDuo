@@ -1,11 +1,24 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
-import { deployTokenDeployer } from "./deployTokenDeployer";
-//import { deployWeth } from "./deployWETH";
-
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
+const PUMP_FQN = "contracts/pump/Pump.sol:Pump";
+
+async function deployPump(
+  factoryAddress: string,
+  wgasAddress: string,
+  chain: import("../config/chains").ChainConfig
+) {
+  const pumpOverrides = await buildTxOverrides(ethers.provider, chain, 3_000_000n);
+  const Pump = await ethers.getContractFactory(PUMP_FQN);
+  const pump = await Pump.deploy(factoryAddress, wgasAddress, pumpOverrides);
+  await pump.waitForDeployment();
+  const pumpAddress = await pump.getAddress();
+  console.log("Pump:", pumpAddress);
+  console.log("Pump tx:", pump.deploymentTransaction()?.hash ?? "unknown");
+  return pump;
+}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -47,7 +60,7 @@ async function main() {
   console.log("Router:", routerAddress);
   console.log("Router tx:", router.deploymentTransaction()?.hash ?? "unknown");
 
-  await deployTokenDeployer();
+  await deployPump(factoryAddress, chain.wgasAddress, chain);
 }
 
 main().catch((error) => {
