@@ -30,6 +30,9 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
   async function deployInfra() {
     [owner, user1, user2] = await ethers.getSigners();
+    await ethers.provider.send("hardhat_setBalance", [owner.address, "0x152D02C7E14AF6800000"]);
+    await ethers.provider.send("hardhat_setBalance", [user1.address, "0x152D02C7E14AF6800000"]);
+    await ethers.provider.send("hardhat_setBalance", [user2.address, "0x152D02C7E14AF6800000"]);
 
     const WETH = await ethers.getContractFactory("WETH9");
     weth = await WETH.deploy();
@@ -296,7 +299,6 @@ describe("Pump × Uniswap V2 Router Integration", function () {
   describe("Different Graduation Ratios", function () {
     it("should work with minimum graduation ratio (P=5001)", async function () {
       await deployInfra();
-      // Create sale with P = 5001 bps (minimum valid)
       const minBps = 5001;
       const tx = await pump.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"));
       const receipt = await tx.wait();
@@ -304,9 +306,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
         .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleCreated");
       const tAddr = log!.args.token as string;
-      const t = PumpToken__factory.connect(tAddr, owner);
 
-      // Graduate
       const sale = await pump.getSale(tAddr);
       await pump.connect(owner).buy(tAddr, 0n, { value: sale.targetRaise });
 
@@ -316,13 +316,158 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("should work with maximum graduation ratio (P=8000)", async function () {
       await deployInfra();
-      await createSale(); // Already uses 8000
+      await createSale();
 
       const sale = await pump.getSale(tokenAddr);
       await pump.connect(owner).buy(tokenAddr, 0n, { value: sale.targetRaise });
 
       const gradSale = await pump.getSale(tokenAddr);
       expect(gradSale.graduated).to.equal(true);
+    });
+  });
+
+  describe("Graduation fund flow to Pair", function () {
+    let pairAddr: string;
+    let pair: UniswapV2Pair;
+    let saleGrad: Awaited<ReturnType<typeof pump.getSale>>;
+    let gradLog: any;
+    let rich: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
+
+    beforeEach(async function () {
+      [owner, , , , rich] = await ethers.getSigners();
+      await ethers.provider.send("hardhat_setBalance", [owner.address, "0x152D02C7E14AF6800000"]);
+      await deployInfra();
+      await createSale();
+
+      await pump.connect(rich).buy(tokenAddr, 0n, { value: ethers.parseEther("30") });
+
+      const sale = await pump.getSale(tokenAddr);
+      const remaining = sale.targetRaise - sale.gasRaised;
+      const gradTx = await pump.connect(rich).buy(tokenAddr, 0n, { value: remaining });
+      const receipt = await gradTx.wait();
+      gradLog = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleGraduated");
+      pairAddr = gradLog!.args.pair as string;
+      pair = UniswapV2Pair__factory.connect(pairAddr, owner);
+      saleGrad = await pump.getSale(tokenAddr);
+    });
+
+    it("pumps all remaining tokens and raised gas into the pair", async function () {
+      const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
+      const gasForLP = saleGrad.gasRaised;
+
+      expect(gradLog!.args.tokensForLP).to.equal(tokensForLP);
+      expect(gradLog!.args.gasForLP).to.equal(gasForLP);
+
+      const pumpTokenBalance = await token.balanceOf(await pump.getAddress());
+      expect(pumpTokenBalance).to.equal(0n);
+
+      const [res0, res1] = await pair.getReserves();
+      expect(res0).to.be.gt(0n);
+      expect(res1).to.be.gt(0n);
+
+      const wethAddr = await weth.getAddress();
+      const pairToken0 = await pair.token0();
+      if (pairToken0.toLowerCase() === wethAddr.toLowerCase()) {
+        expect(res0).to.equal(gasForLP);
+        expect(res1).to.equal(tokensForLP);
+      } else {
+        expect(res0).to.equal(tokensForLP);
+        expect(res1).to.equal(gasForLP);
+      }
+    });
+
+    it("LP tokens are minted to address(0) and total supply is correct", async function () {
+      expect(await pair.balanceOf(await pump.getAddress())).to.equal(0n);
+      expect(await pair.totalSupply()).to.be.gt(0n);
+    });
+
+    it("PumpToken ownership remains with Pump contract after graduation", async function () {
+      const pumpToken = PumpToken__factory.connect(tokenAddr, owner);
+      expect(await pumpToken.owner()).to.equal(await pump.getAddress());
+    });
+  });
+
+  describe("Graduation via tokensSold cap", function () {
+    it("graduation triggers via overpayment exceeding maxTokens cap", async function () {
+      [owner, , , , user1] = await ethers.getSigners();
+      await ethers.provider.send("hardhat_setBalance", [user1.address, "0x152D02C7E14AF6800000"]);
+
+      const WETH = await ethers.getContractFactory("WETH9");
+      const weth = await WETH.deploy();
+      await weth.waitForDeployment();
+
+      const Factory = await ethers.getContractFactory("UniswapV2Factory");
+      const factory = await Factory.deploy(owner.address);
+      await factory.waitForDeployment();
+
+      const router = await new UniswapV2Router02__factory(owner).deploy(
+        await factory.getAddress(), await weth.getAddress()
+      );
+      await router.waitForDeployment();
+
+      const pump = await new Pump__factory(owner).deploy(
+        await factory.getAddress(), await weth.getAddress()
+      );
+      await pump.waitForDeployment();
+
+      const totalSupply = ethers.parseEther("1000000000");
+      const gradBps = 8000n;
+      const maxTokens = totalSupply * gradBps / 10000n;
+
+      const tx = await pump.createSale("CapGrad", "CAP", gradBps, ethers.parseEther("1000"));
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      const tAddr = log!.args.token as string;
+
+      const saleBefore = await pump.getSale(tAddr);
+
+      const tokenReserve = saleBefore.virtualToken;
+      const gasReserve = saleBefore.virtualGas;
+      const gasToHitCap = (maxTokens * gasReserve) / (tokenReserve - maxTokens) + 1n;
+
+      const buyTx = await pump.connect(user1).buy(tAddr, 0n, { value: gasToHitCap * 2n });
+      const gradReceipt = await buyTx.wait();
+      const gradLog2 = gradReceipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleGraduated");
+      expect(gradLog2).to.not.be.undefined;
+
+      const saleAfter = await pump.getSale(tAddr);
+      expect(saleAfter.graduated).to.equal(true);
+      expect(saleAfter.tokensSold).to.equal(maxTokens);
+    });
+  });
+
+  describe("Path coverage", function () {
+    beforeEach(async function () {
+      await deployInfra();
+      await createSale();
+    });
+
+    it("reverts when sending ETH directly to Pump contract", async function () {
+      await expect(
+        owner.sendTransaction({ to: await pump.getAddress(), value: ethers.parseEther("1") })
+      ).to.be.reverted;
+    });
+
+    it("sell cannot trigger graduation even after selling all tokens", async function () {
+      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+      const bal = await token.balanceOf(user1.address);
+      await token.connect(user1).approve(await pump.getAddress(), bal);
+      await pump.connect(user1).sell(tokenAddr, bal, 0n);
+
+      const sale = await pump.getSale(tokenAddr);
+      expect(sale.graduated).to.equal(false);
+    });
+
+    it("createSale reverts with targetRaise = 0", async function () {
+      await expect(
+        pump.createSale("Zero", "ZRO", 8000, 0n)
+      ).to.be.reverted;
     });
   });
 });

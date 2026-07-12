@@ -1,0 +1,281 @@
+import { expect } from "chai";
+import { ethers } from "hardhat";
+import type { Pump, PumpToken } from "../typechain-types";
+import { Pump__factory, PumpToken__factory } from "../typechain-types";
+
+describe("Pump — static functions", function () {
+  let owner: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
+  let user: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
+  let pump: Pump;
+  let factoryAddr: string;
+  let wethAddr: string;
+
+  const TOTAL_SUPPLY = ethers.parseEther("1000000000");
+  const BPS_DENOMINATOR = 10000n;
+
+  beforeEach(async function () {
+    [owner, user] = await ethers.getSigners();
+
+    const WETH = await ethers.getContractFactory("WETH9");
+    const weth = await WETH.deploy();
+    await weth.waitForDeployment();
+    wethAddr = await weth.getAddress();
+
+    const Factory = await ethers.getContractFactory("UniswapV2Factory");
+    const factory = await Factory.deploy(owner.address);
+    await factory.waitForDeployment();
+    factoryAddr = await factory.getAddress();
+
+    pump = await new Pump__factory(owner).deploy(factoryAddr, wethAddr);
+    await pump.waitForDeployment();
+  });
+
+  describe("uniswapFactory", function () {
+    it("returns the Uniswap factory address from constructor", async function () {
+      expect(await pump.uniswapFactory()).to.equal(factoryAddr);
+    });
+  });
+
+  describe("weth", function () {
+    it("returns the WETH address from constructor", async function () {
+      expect(await pump.weth()).to.equal(wethAddr);
+    });
+  });
+
+  describe("getSale", function () {
+    let tokenAddr: string;
+    const graduationBps = 8000n;
+    const targetRaise = ethers.parseEther("1000");
+
+    beforeEach(async function () {
+      const tx = await pump.createSale("Test", "TST", graduationBps, targetRaise);
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      tokenAddr = log!.args.token as string;
+    });
+
+    it("returns correct initial sale info", async function () {
+      const sale = await pump.getSale(tokenAddr);
+      expect(sale.creator).to.equal(owner.address);
+      expect(sale.totalSupply).to.equal(TOTAL_SUPPLY);
+      expect(sale.tokensSold).to.equal(0n);
+      expect(sale.gasRaised).to.equal(0n);
+      expect(sale.targetRaise).to.equal(targetRaise);
+      expect(sale.graduationBps).to.equal(graduationBps);
+      expect(sale.graduated).to.equal(false);
+    });
+
+    it("computes virtual reserves correctly for P=8000", async function () {
+      const p = graduationBps;
+      const twoPminusOne = 2n * p - BPS_DENOMINATOR;
+      const pSquared = p * p;
+      const expectedVToken = TOTAL_SUPPLY * pSquared / (BPS_DENOMINATOR * twoPminusOne);
+      const expectedVGas = targetRaise * (BPS_DENOMINATOR - p) / twoPminusOne;
+
+      const sale = await pump.getSale(tokenAddr);
+      expect(sale.virtualToken).to.equal(expectedVToken);
+      expect(sale.virtualGas).to.equal(expectedVGas);
+    });
+
+    it("updates tokensSold and gasRaised after buy", async function () {
+      await pump.connect(user).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+      const sale = await pump.getSale(tokenAddr);
+      expect(sale.tokensSold).to.be.gt(0n);
+      expect(sale.gasRaised).to.equal(ethers.parseEther("10"));
+    });
+
+    it("reverts for non-existent token", async function () {
+      await expect(
+        pump.getSale(ethers.Wallet.createRandom().getAddress())
+      ).to.be.revertedWith("SALE_NOT_EXIST");
+    });
+  });
+
+  describe("getCurrentPrice", function () {
+    let tokenAddr: string;
+
+    beforeEach(async function () {
+      const tx = await pump.createSale("Test", "TST", 8000n, ethers.parseEther("1000"));
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      tokenAddr = log!.args.token as string;
+    });
+
+    it("returns zero price before any trades", async function () {
+      const sale = await pump.getSale(tokenAddr);
+      const initialPrice = sale.virtualGas * ethers.parseEther("1") / sale.virtualToken;
+      const price = await pump.getCurrentPrice(tokenAddr);
+      expect(price).to.equal(initialPrice);
+    });
+
+    it("returns increasing price after buy", async function () {
+      const priceBefore = await pump.getCurrentPrice(tokenAddr);
+      await pump.connect(user).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+      const priceAfter = await pump.getCurrentPrice(tokenAddr);
+      expect(priceAfter).to.be.gt(priceBefore);
+    });
+
+    it("returns decreasing price after sell", async function () {
+      await pump.connect(user).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+      const priceBefore = await pump.getCurrentPrice(tokenAddr);
+
+      const token: PumpToken = PumpToken__factory.connect(tokenAddr, user);
+      const balance = await token.balanceOf(user.address);
+      await token.connect(user).approve(await pump.getAddress(), balance);
+      await pump.connect(user).sell(tokenAddr, balance / 2n, 0n);
+
+      const priceAfter = await pump.getCurrentPrice(tokenAddr);
+      expect(priceAfter).to.be.lt(priceBefore);
+    });
+
+    it("reverts for non-existent token", async function () {
+      await expect(
+        pump.getCurrentPrice(ethers.Wallet.createRandom().getAddress())
+      ).to.be.revertedWith("SALE_NOT_EXIST");
+    });
+
+    it("reverts after graduation", async function () {
+      const targetRaise = ethers.parseEther("10");
+      const tx = await pump.createSale("Test", "TST", 8000n, targetRaise);
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      const tAddr = log!.args.token as string;
+
+      await pump.connect(user).buy(tAddr, 0n, { value: targetRaise });
+      await expect(pump.getCurrentPrice(tAddr)).to.be.revertedWith("SALE_GRADUATED");
+    });
+  });
+
+  describe("getTokensForGas", function () {
+    let tokenAddr: string;
+
+    beforeEach(async function () {
+      const tx = await pump.createSale("Test", "TST", 8000n, ethers.parseEther("1000"));
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      tokenAddr = log!.args.token as string;
+    });
+
+    it("returns expected token amount for given gas", async function () {
+      const sale = await pump.getSale(tokenAddr);
+      const gasReserve = sale.virtualGas + sale.gasRaised;
+      const tokenReserve = sale.virtualToken - sale.tokensSold;
+      const gasAmount = ethers.parseEther("1");
+
+      const expected = gasAmount * tokenReserve / (gasReserve + gasAmount);
+      const result = await pump.getTokensForGas(tokenAddr, gasAmount);
+      expect(result).to.be.closeTo(expected, expected / 1000n);
+    });
+
+    it("matches actual buy output", async function () {
+      const gasAmount = ethers.parseEther("10");
+      const quote = await pump.getTokensForGas(tokenAddr, gasAmount);
+
+      const buyTx = await pump.connect(user).buy(tokenAddr, 0n, { value: gasAmount });
+      const receipt = await buyTx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "TokensPurchased");
+
+      const actualOut = log!.args.tokensOut as bigint;
+      const diff = quote > actualOut ? quote - actualOut : actualOut - quote;
+      expect(diff * 1000000n).to.be.lt(quote + actualOut);
+    });
+
+    it("reverts for non-existent token", async function () {
+      await expect(
+        pump.getTokensForGas(ethers.Wallet.createRandom().getAddress(), ethers.parseEther("1"))
+      ).to.be.revertedWith("SALE_NOT_EXIST");
+    });
+
+    it("reverts after graduation", async function () {
+      const targetRaise = ethers.parseEther("10");
+      const tx = await pump.createSale("Test", "TST", 8000n, targetRaise);
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      const tAddr = log!.args.token as string;
+
+      await pump.connect(user).buy(tAddr, 0n, { value: targetRaise });
+      await expect(
+        pump.getTokensForGas(tAddr, ethers.parseEther("1"))
+      ).to.be.revertedWith("SALE_GRADUATED");
+    });
+  });
+
+  describe("getGasForTokens", function () {
+    let tokenAddr: string;
+
+    beforeEach(async function () {
+      const tx = await pump.createSale("Test", "TST", 8000n, ethers.parseEther("1000"));
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      tokenAddr = log!.args.token as string;
+    });
+
+    it("returns expected gas amount for given tokens", async function () {
+      await pump.connect(user).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+
+      const sale = await pump.getSale(tokenAddr);
+      const gasReserve = sale.virtualGas + sale.gasRaised;
+      const tokenReserve = sale.virtualToken - sale.tokensSold;
+      const tokenAmount = ethers.parseEther("100");
+
+      const expected = tokenAmount * gasReserve / (tokenReserve + tokenAmount);
+      const result = await pump.getGasForTokens(tokenAddr, tokenAmount);
+      expect(result).to.be.closeTo(expected, expected / 1000n);
+    });
+
+    it("matches actual sell output", async function () {
+      await pump.connect(user).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+
+      const token: PumpToken = PumpToken__factory.connect(tokenAddr, user);
+      const balance = await token.balanceOf(user.address);
+      const sellAmount = balance / 4n;
+      const quote = await pump.getGasForTokens(tokenAddr, sellAmount);
+
+      await token.connect(user).approve(await pump.getAddress(), sellAmount);
+      const sellTx = await pump.connect(user).sell(tokenAddr, sellAmount, 0n);
+      const receipt = await sellTx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "TokensSold");
+
+      const actualOut = log!.args.gasOut as bigint;
+      const diff = quote > actualOut ? quote - actualOut : actualOut - quote;
+      expect(diff * 1000000n).to.be.lt(quote + actualOut);
+    });
+
+    it("reverts for non-existent token", async function () {
+      await expect(
+        pump.getGasForTokens(ethers.Wallet.createRandom().getAddress(), ethers.parseEther("100"))
+      ).to.be.revertedWith("SALE_NOT_EXIST");
+    });
+
+    it("reverts after graduation", async function () {
+      const targetRaise = ethers.parseEther("10");
+      const tx = await pump.createSale("Test", "TST", 8000n, targetRaise);
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      const tAddr = log!.args.token as string;
+
+      await pump.connect(user).buy(tAddr, 0n, { value: targetRaise });
+      await expect(
+        pump.getGasForTokens(tAddr, ethers.parseEther("100"))
+      ).to.be.revertedWith("SALE_GRADUATED");
+    });
+  });
+});
