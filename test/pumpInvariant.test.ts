@@ -136,7 +136,7 @@ describe("Pump Invariants & Boundary Tests", function () {
 
   // ─── INVARIANT 3: tokensSold never exceeds cap ────────────
   describe("Invariant: tokensSold �?totalSupply * P / BPS_DENOM before graduation", function () {
-    for (const p of [5001, 6000, 7000, 8000]) {
+    for (const p of [6001, 6000, 7000, 8000]) {
       it(`P = ${p}`, async function () {
         await deploy(p);
         const s = await pump.getSale(tokenAddr);
@@ -288,22 +288,22 @@ describe("Pump Invariants & Boundary Tests", function () {
 
   // ─── BOUNDARY: invalid graduation values ──────────────────
   describe("Boundary: graduation BPS", function () {
-    it("reverts P = 5000 (invalid, twoPminusOne = 0)", async function () {
-      await deploy(8000); // deploy a baseline first for signers
-      const [o] = await ethers.getSigners();
-      const Router = await ethers.getContractFactory("UniswapV2Router02");
-      const r = await Router.deploy(ethers.ZeroAddress, ethers.ZeroAddress);
-      await r.waitForDeployment();
-      const p = await new Pump__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
-      await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 5000, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION");
-    });
+    // it("reverts P = 5000 (invalid, twoPminusOne = 0)", async function () {
+    //   await deploy(8000); // deploy a baseline first for signers
+    //   const [o] = await ethers.getSigners();
+    //   const Router = await ethers.getContractFactory("UniswapV2Router02");
+    //   const r = await Router.deploy(ethers.ZeroAddress, ethers.ZeroAddress);
+    //   await r.waitForDeployment();
+    //   const p = await new Pump__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
+    //   await p.waitForDeployment();
+    //   await expect(p.createSale("X", "X", 5000, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION");
+    // });
 
-    it("reverts P < 5000", async function () {
+    it("reverts P < 6000", async function () {
       const [o] = await ethers.getSigners();
       const p = await new Pump__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 4999, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MIN");
+      await expect(p.createSale("X", "X", 5999, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MIN");
     });
 
     it("reverts P > 9900", async function () {
@@ -313,12 +313,12 @@ describe("Pump Invariants & Boundary Tests", function () {
       await expect(p.createSale("X", "X", 9901, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MAX");
     });
 
-    it("accepts P = 5001 (minimum valid)", async function () {
-      await deploy(5001);
+    it("accepts P = 6001 (minimum valid)", async function () {
+      await deploy(6001);
       const s = await pump.getSale(tokenAddr);
       expect(s.virtualGas).to.be.gt(0n);
       expect(s.virtualToken).to.be.gt(0n);
-      expect(s.graduationBps).to.equal(5001);
+      expect(s.graduationBps).to.equal(6001);
     });
 
     it("accepts P = 9900 (maximum valid)", async function () {
@@ -416,7 +416,7 @@ describe("Pump Invariants & Boundary Tests", function () {
     });
 
     it("P=5001 graduation still creates Uniswap pair", async function () {
-      await deploy(5001);
+      await deploy(6001);
       const s = await pump.getSale(tokenAddr);
       await ethers.provider.send("hardhat_setBalance", [
         owner.address, "0x1000000000000000000000"
@@ -590,7 +590,7 @@ describe("Pump Invariants & Boundary Tests", function () {
       }
     }
 
-    for (const p of [5001, 6500, 8000]) {
+    for (const p of [6001, 6500, 8000, 9500]) {
       it(`P = ${p} survives 10 rounds`, async function () {
         await fuzzRound(p, 10);
       });
