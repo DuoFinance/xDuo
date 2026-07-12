@@ -5,8 +5,8 @@ pragma solidity ^0.8.24;
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
 /// @dev Mirrors pump.fun core logic:
 ///   - Internal bonding curve two-way trading
-///   - Graduates when raised gas reaches TARGET_RAISE or p token sold 
-///   - All remaining tokens + gas go into Uniswap V2 on graduation
+///   - Graduates when raised GAS reaches TARGET_RAISE or p token sold 
+///   - All remaining tokens + GAS go into Uniswap V2 on graduation
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -49,7 +49,7 @@ contract Pump is IPump, ReentrancyGuard {
 
     /* ============ Constructor ============ */
     /// @param uniswapFactory_ Uniswap V2 Factory address
-    /// @param weth_ WETH address
+    /// @param weth_ WGAS10 address
     constructor(address uniswapFactory_, address weth_) {
         uniswapFactory = uniswapFactory_;
         weth = weth_;
@@ -144,7 +144,7 @@ contract Pump is IPump, ReentrancyGuard {
         // 5. Transfer tokens to buyer
         IERC20(token).safeTransfer(msg.sender, tokensOut);
 
-        // 6. Refund overpaid gas (after state changes)
+        // 6. Refund overpaid GAS (after state changes)
         if (refund > 0) {
             (bool ok, ) = msg.sender.call{value: refund}("");
             require(ok, "REFUND_FAILED");
@@ -152,7 +152,7 @@ contract Pump is IPump, ReentrancyGuard {
 
         emit TokensPurchased(msg.sender, token, gasIn, tokensOut);
 
-        // 7. Check if graduated (gas target reached OR all graduation tokens sold)
+        // 7. Check if graduated (GAS target reached OR all graduation tokens sold)
         if (s.gasRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
             _graduate(token);
         }
@@ -173,7 +173,7 @@ contract Pump is IPump, ReentrancyGuard {
         uint256 gasReserve   = s.virtualGas + s.gasRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
 
-        // 2. Calculate gas due
+        // 2. Calculate GAS due
         gasOut = CurveMath.getAmountOut(tokenReserve, gasReserve, tokensIn);
         require(gasOut > 0, "ZERO_GAS");
         require(gasOut >= minGasOut, "SLIPPAGE");
@@ -186,7 +186,7 @@ contract Pump is IPump, ReentrancyGuard {
         // 4. Transfer tokens from seller
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
 
-        // 5. Transfer gas to seller
+        // 5. Transfer GAS to seller
         (bool ok, ) = msg.sender.call{value: gasOut}("");
         require(ok, "GAS_TRANSFER_FAILED");
 
@@ -196,7 +196,7 @@ contract Pump is IPump, ReentrancyGuard {
     /* ============ Graduation ============ */
     /// @dev On graduation:
     ///   - All remaining tokens go into the Uniswap V2 pool
-    ///   - All raised gas goes into the pool
+    ///   - All raised GAS goes into the pool
     ///   - LP token sent to burn address (address(0)), ownership renounced
     ///   - No burn, virtual pool amplification ensures smooth price transition
     ///   - Bypasses Router to avoid front-running DoS via slippage checks
@@ -219,7 +219,7 @@ contract Pump is IPump, ReentrancyGuard {
 
         s.pair = pair;
 
-        // 1. Wrap ETH to WETH
+        // 1. Wrap GAS to WGAS
         IWETH(weth).deposit{value: gasForLP}();
 
         // 2. Transfer token and WETH to pair
@@ -284,7 +284,7 @@ contract Pump is IPump, ReentrancyGuard {
     }
 
     /* ============ Receive ============ */
-    /// @dev No receive needed - buy() handles ETH, graduation wraps ETH to WETH directly
+    /// @dev No receive needed - buy() handles GAS, graduation wraps GAS to WGAS directly
     receive() external payable {
         revert("USE_BUY_FUNCTION");
     }
