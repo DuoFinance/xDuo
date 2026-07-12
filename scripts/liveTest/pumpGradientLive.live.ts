@@ -241,7 +241,7 @@ async function runRound(
 
 async function main() {
   const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "deployed.json"), "utf8")
+    fs.readFileSync(path.join(__dirname, "..", '..',"deployed.json"), "utf8")
   );
   const network = hre.network.name;
 
