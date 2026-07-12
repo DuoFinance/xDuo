@@ -222,7 +222,7 @@ contract Pump is IPump, ReentrancyGuard {
         // 1. Wrap GAS to WGAS
         IWETH(weth).deposit{value: gasForLP}();
 
-        // 2. Transfer token and WETH to pair
+        // 2. Transfer token and WGAS to pair
         IERC20(token).safeTransfer(pair, tokensForLP);
         IERC20(weth).safeTransfer(pair, gasForLP);
 
