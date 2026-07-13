@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./IPump.sol";
 import "./Constants.sol";
 import "./CurveMath.sol";
-import "./PumpToken.sol";
+import "./TokenTemplate.sol";
 import "./IUniswapV2.sol";
 
 contract Pump is IPump, ReentrancyGuard {
