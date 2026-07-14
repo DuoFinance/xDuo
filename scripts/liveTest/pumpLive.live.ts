@@ -1,4 +1,5 @@
 import hre from "hardhat";
+import type { Interface } from "ethers";
 const { ethers } = hre;
 import assert from "assert";
 import * as fs from "fs";
@@ -22,6 +23,8 @@ const PUMP_ABI = [
   "event TokensSold(address indexed seller, address indexed token, uint256 tokensIn, uint256 gasOut)",
   "event SaleGraduated(address indexed token, address pair, uint256 tokensForLP, uint256 gasForLP)",
 ];
+
+let pumpIface: Interface;
 
 const ERC20 = [
   "function balanceOf(address) view returns (uint256)",
@@ -58,6 +61,8 @@ async function main() {
   const code = await ethers.provider.getCode(deployed.pump);
   assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.pump}. Run with --network <network> where the contracts are deployed (e.g. neoxTestnet, legacy)`);
   const pump: any = await ethers.getContractAt(PUMP_ABI, deployed.pump);
+  const pumpArtifact = await hre.artifacts.readArtifact("contracts/pump/Pump.sol:Pump");
+  pumpIface = new ethers.Interface(pumpArtifact.abi);
   assert.strictEqual(
     (await pump.getAddress()).toLowerCase(),
     deployed.pump.toLowerCase()
@@ -80,22 +85,22 @@ async function main() {
     console.log("   WARNING: very low balance — gas for createSale may be insufficient.");
   }
 
+  const pumpAddr = await pump.getAddress();
   const createTx = await pump.createSale("Live Test", "LVT", BPS, TARGET);
-  const createRc = await ethers.provider.getTransactionReceipt(createTx.hash!);
+  const createRc = await createTx.wait();
   if (!createRc || createRc.status === 0) {
-    // simulate to extract revert reason
     try { await pump.createSale.staticCall("Live Test", "LVT", BPS, TARGET); } catch (simErr: any) {
       throw new Error(`createSale reverted: ${simErr.reason || simErr.message}`);
     }
     throw new Error("createSale reverted (status=0 but staticCall passed)");
   }
-  const pumpAddr = await pump.getAddress();
   const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
   const saleLog = createRc.logs.find((l: any) =>
     l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
   );
   assert.ok(saleLog, "SaleCreated event expected in tx logs");
-  const parsedLog = pump.interface.parseLog(saleLog);
+  const parsedLog = pumpIface.parseLog(saleLog);
+  assert.ok(parsedLog, "parseLog failed for SaleCreated");
   const tokenAddr: string = parsedLog.args.token;
 
   const token = await ethers.getContractAt(ERC20, tokenAddr);
@@ -127,7 +132,7 @@ async function main() {
   const buyTx = await pump.connect(deployer).buy(tokenAddr, 0n, { value: buyAmt });
   const buyRc = await buyTx.wait();
   const buyLog = buyRc!.logs
-    .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+    .map((l: any) => { try { return pumpIface.parseLog(l); } catch { return null; } })
     .find((p: any) => p?.name === "TokensPurchased");
   assert.ok(buyLog);
   const tokensOut: bigint = buyLog!.args.tokensOut;
@@ -161,7 +166,7 @@ async function main() {
   const sellTx = await pump.connect(deployer).sell(tokenAddr, sellAmt, 0n);
   const sellRc = await sellTx.wait();
   const sellLog = sellRc!.logs
-    .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+    .map((l: any) => { try { return pumpIface.parseLog(l); } catch { return null; } })
     .find((p: any) => p?.name === "TokensSold");
   assert.ok(sellLog);
   const gasOut: bigint = sellLog!.args.gasOut;
@@ -218,7 +223,7 @@ async function main() {
       const gradTx = await pump.connect(deployer).buy(tokenAddr, 0n, { value: need });
       const gRc = await gradTx.wait();
       const gLog = gRc!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return pumpIface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
 
       if (gLog) {

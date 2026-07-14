@@ -1,4 +1,8 @@
-import { ethers } from "hardhat";
+import hre from "hardhat";
+import type { Interface } from "ethers";
+const { ethers } = hre;
+import * as fs from "fs";
+import path from "path";
 
 const PK1 = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const PK2 = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
@@ -7,24 +11,24 @@ const TG = ethers.parseEther("1000");
 const PASS = "✅", FAIL = "❌", WARN = "⚠️", INFO = "ℹ️";
 const _log = (p: string, m: string) => console.log(`  ${p} ${m}`);
 
-let pumpAddr: string, routerAddr: string, wgasAddr: string;
+let pumpAddr: string, routerAddr: string, wgasAddr: string, factoryAddr: string;
 
 const ABI = [
-  "function createSale(string,string,uint256) returns (address)",
+  "function createSale(string,string,uint256,uint256) returns (address)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
 ];
-const eventsIface = new ethers.Interface([
-  "event SaleCreated(address indexed creator, address indexed token, string name, string symbol)",
-]);
 
-async function sale(contract: any, n: string, s: string, b = 8000): Promise<string> {
-  const tx = await contract.createSale(n, s, b);
+let saleIface: Interface;
+
+async function sale(contract: any, n: string, s: string, b = 8000, t?: bigint): Promise<string> {
+  const target = t ?? ethers.parseEther("1000");
+  const tx = await contract.createSale(n, s, b, target);
   const rc = await tx.wait();
   for (const l of rc!.logs) {
     if (l.address.toLowerCase() !== pumpAddr.toLowerCase()) continue;
-    const p = eventsIface.parseLog(l);
+    const p = saleIface.parseLog(l);
     if (p?.name === "SaleCreated") return p.args.token as string;
   }
   throw new Error("SaleCreated not found");
@@ -61,26 +65,25 @@ async function main() {
   const victim = new ethers.Wallet(PK2, ethers.provider);
   const deployer = victim; // victim has most ETH left
 
-  _log(INFO, "Deploying Factory + WETH + Router + Pump...");
-  const Factory = await ethers.getContractFactory("contracts/UniswapV2Factory.sol:UniswapV2Factory");
-  const factory = await Factory.connect(deployer).deploy(deployer.address);
-  await factory.waitForDeployment();
-  const factoryAddr = await factory.getAddress();
+  _log(INFO, "Loading deployed contracts...");
+  const deployed = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..","..", "deployed.json"), "utf8")
+  );
+  pumpAddr = deployed.pump;
+  wgasAddr = deployed.wgas;
+  routerAddr = deployed.router;
+  factoryAddr = deployed.factory;
 
-  const WETH9 = await ethers.getContractFactory("contracts/Weth9.sol:WETH9");
-  const weth = await WETH9.connect(deployer).deploy();
-  await weth.waitForDeployment();
-  wgasAddr = await weth.getAddress();
+  const pumpArtifact = await hre.artifacts.readArtifact("contracts/pump/Pump.sol:Pump");
+  saleIface = new ethers.Interface(pumpArtifact.abi);
 
-  const Router = await ethers.getContractFactory("contracts/UniswapV2Router02.sol:UniswapV2Router02");
-  const router = await Router.connect(deployer).deploy(factoryAddr, wgasAddr);
-  await router.waitForDeployment();
-  routerAddr = await router.getAddress();
-
-  const Pump = await ethers.getContractFactory("contracts/pump/Pump.sol:Pump");
-  const pump = await Pump.connect(deployer).deploy(routerAddr);
-  await pump.waitForDeployment();
-  pumpAddr = await pump.getAddress();
+  // Verify contracts exist on this network
+  const pumpCode = await ethers.provider.getCode(pumpAddr);
+  if (pumpCode === "0x" || pumpCode === "0x0") {
+    _log(FAIL, `No Pump bytecode at ${pumpAddr}`);
+    _log(INFO, "Run with: --network legacy (anvil fork of NeoX mainnet)");
+    process.exit(1);
+  }
 
   _log(INFO, `Factory=${factoryAddr} Router=${routerAddr} Pump=${pumpAddr}`);
   const bal = async (w: string, s: any) => _log(INFO, `${w}: ${ethers.formatEther(await ethers.provider.getBalance(s.address))}`);
@@ -91,8 +94,8 @@ async function main() {
 
   // ──── 1. REENTRANCY ────
   console.log(`\n${"=".repeat(60)}\n  1. REENTRANCY\n${"=".repeat(60)}`);
-  const t1 = await sale(P, "Reentrant", "REN");
-  const RA = await ethers.getContractFactory("contracts/test/MaliciousHelper.sol:ReentrancyAttacker");
+  const t1 = await sale(P, "Reentrant", "REN", 8000, ethers.parseEther("100"));
+  const RA = await ethers.getContractFactory("contracts/MaliciousHelper.sol:ReentrancyAttacker");
   const reenter = await RA.connect(attacker).deploy(pumpAddr, t1);
   await reenter.waitForDeployment();
   await attacker.sendTransaction({ to: await reenter.getAddress(), value: ONE * 100n });
@@ -103,7 +106,7 @@ async function main() {
 
   // ──── 2. REFUND GRIEF ────
   console.log(`\n${"=".repeat(60)}\n  2. REFUND GRIEF\n${"=".repeat(60)}`);
-  const t2 = await sale(P, "Grief", "GRF");
+  const t2 = await sale(P, "Grief", "GRF", 8000, ethers.parseEther("4000"));
   // DEBUG: Buy 3000 ETH directly from EOA to verify cap threshold
   const BUY_IFACE = new ethers.Interface(["function buy(address,uint256) payable returns (uint256)"]);
   const bd = BUY_IFACE.encodeFunctionData("buy", [t2, 0n]);
@@ -115,13 +118,22 @@ async function main() {
     _log(INFO, `Direct 3000 buy OK, gasRaised=${ethers.formatEther(grDb)}`);
   } catch { /* direct buy reverted (may have triggered graduation with insufficient gas) */ }
   // Test RefundGriefer helper
-  const RG = await ethers.getContractFactory("contracts/test/MaliciousHelper.sol:RefundGriefer");
+  const RG = await ethers.getContractFactory("contracts/MaliciousHelper.sol:RefundGriefer");
   const griefer = await RG.connect(attacker).deploy();
   await griefer.waitForDeployment();
-  try { await attacker.sendTransaction({ to: await griefer.getAddress(), value: ONE, gasLimit: 50000 }); _log(FAIL, "Griefer should reject ETH"); }
-  catch { _log(PASS, "Griefer rejects direct ETH transfers"); }
-  try { await griefer.attackRefundGrief(pumpAddr, t2, { value: TG * 3n, gasLimit: 2_000_000 }); _log(FAIL, "Griefer buy should revert (refund blocked)"); }
-  catch { _log(PASS, "Griefer buy reverted (refund blocked by reverting receive)"); }
+  // Griefer's receive() rejects ETH, so sendTransaction should fail on-chain
+  try {
+    const gt = await attacker.sendTransaction({ to: await griefer.getAddress(), value: ONE, gasLimit: 50000 });
+    const gr = await gt.wait();
+    if (gr?.status === 0) _log(PASS, "Griefer rejects direct ETH transfers");
+    else _log(FAIL, "Griefer should reject ETH");
+  } catch { _log(PASS, "Griefer rejects direct ETH transfers"); }
+  try {
+    const gt = await griefer.attackRefundGrief(pumpAddr, t2, { value: TG * 3n, gasLimit: 2_000_000 });
+    const gr = await gt.wait();
+    if (gr?.status === 0) _log(PASS, "Griefer buy reverted (refund blocked)");
+    else _log(FAIL, "Griefer buy should revert (refund blocked)");
+  } catch { _log(PASS, "Griefer buy reverted (refund blocked)"); }
   // Other users
   const ok = await buy(victim, "Victim buys after griefer", t2, ONE * 50n);
   const tb = await tok(t2).balanceOf(victim.address);
@@ -129,7 +141,7 @@ async function main() {
 
   // ──── 3. BOUNDARIES ────
   console.log(`\n${"=".repeat(60)}\n  3. BOUNDARIES\n${"=".repeat(60)}`);
-  const t3 = await sale(P, "Boundary", "BND");
+  const t3 = await sale(P, "Boundary", "BND", 8000, ethers.parseEther("100"));
   const T3 = tok(t3, victim);
   const b3 = await buy(victim, "Buy 50 GAS", t3, ONE * 50n);
   const bal3 = b3 ? await T3.balanceOf(victim.address) : 0n;
@@ -145,7 +157,7 @@ async function main() {
 
   // ──── 4. GRADUATION MANIPULATION ────
   console.log(`\n${"=".repeat(60)}\n  4. GRAD MANIPULATION\n${"=".repeat(60)}`);
-  const t4 = await sale(P, "GradManip", "GRD");
+  const t4 = await sale(P, "GradManip", "GRD", 8000, ethers.parseEther("600"));
   await buy(attacker, "Attacker buys 200", t4, ONE * 200n);
   await buy(victim, "Victim buys 300", t4, ONE * 300n);
   const T4 = tok(t4, attacker);
@@ -163,7 +175,7 @@ async function main() {
 
   // ──── 5. POST-GRAD ────
   console.log(`\n${"=".repeat(60)}\n  5. POST-GRAD ACCESS\n${"=".repeat(60)}`);
-  const t5 = await sale(P, "PostGrad", "PST");
+  const t5 = await sale(P, "PostGrad", "PST", 8000, ethers.parseEther("1200"));
   // Split graduation into multiple buys so we don't hit the cap + grad in one tx
   // Buy 500 ETH first, then 500 more
   await buy(victim, "Buy 500", t5, ONE * 500n);
@@ -171,7 +183,14 @@ async function main() {
   const [,,,,,,,, g5] = await P.getSale(t5);
   g5 ? _log(PASS, "Sale graduated") : _log(FAIL, "Not graduated - Router/pair init code mismatch likely");
   await buy(attacker, "Buy after grad", t5, ONE, 0n, g5);
-  await sell(attacker, "Sell after grad", t5, 1n, g5);
+  const at5 = await tok(t5, attacker);
+  const ab5 = await at5.balanceOf(attacker.address);
+  if (ab5 > 0n) {
+    await at5.approve(pumpAddr, ab5);
+    await sell(attacker, "Sell after grad", t5, ab5, g5);
+  } else {
+    _log(WARN, "No tokens to sell after grad");
+  }
   if (g5) {
     const p5 = await factoryC.getPair(t5, wgasAddr);
     if (p5 !== ethers.ZeroAddress) _log(PASS, `Uniswap pair: ${p5}`);
@@ -180,14 +199,19 @@ async function main() {
 
   // ──── 6. FORCED ETH ────
   console.log(`\n${"=".repeat(60)}\n  6. FORCED ETH\n${"=".repeat(60)}`);
-  const t6 = await sale(P, "ForceETH", "FRC");
-  await attacker.sendTransaction({ to: pumpAddr, value: ONE });
+  const t6 = await sale(P, "ForceETH", "FRC", 8000, ethers.parseEther("10"));
+  try {
+    await attacker.sendTransaction({ to: pumpAddr, value: ONE });
+    _log(FAIL, "Forced ETH should revert (USE_BUY_FUNCTION)");
+  } catch {
+    _log(PASS, "Forced ETH reverted as expected");
+  }
   const [,,,g6,,,,] = await P.getSale(t6);
   g6 === 0n ? _log(PASS, "Forced ETH doesn't affect gasRaised") : _log(FAIL, "gasRaised tainted");
 
   // ──── 7. FULL LIFECYCLE ────
   console.log(`\n${"=".repeat(60)}\n  7. FULL LIFECYCLE\n${"=".repeat(60)}`);
-  const t7 = await sale(P, "FullLife", "FUL");
+  const t7 = await sale(P, "FullLife", "FUL", 8000, ethers.parseEther("600"));
   const T7 = tok(t7, victim);
   await buy(victim, "Victim buys 300", t7, ONE * 300n);
   await buy(attacker, "Attacker buys 200", t7, ONE * 200n);
