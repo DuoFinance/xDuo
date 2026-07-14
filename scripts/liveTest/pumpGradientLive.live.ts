@@ -12,6 +12,7 @@ const PUMP_ABI = [
   "function uniswapFactory() view returns (address)",
   "function weth() view returns (address)",
   "function createSale(string,string,uint256,uint256) returns (address)",
+  "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 gasRaised, uint256 targetRaise, uint256 virtualGas, uint256 virtualToken, uint256 graduationBps, bool graduated)",
@@ -34,6 +35,7 @@ const GRAD_CASES = [
   { bps: 7000, label: "70%", targetRaise: 10n },
   { bps: 8000, label: "80%", targetRaise: 50n },
   { bps: 9500, label: "95%", targetRaise: 100n },
+  { bps: 6000, label: "60%-CB", targetRaise: 5n, initialBuy: 2n },
 ];
 
 let roundIndex = 0;
@@ -53,42 +55,74 @@ async function runRound(
   wgas: string,
   bps: number,
   pctLabel: string,
-  targetRaiseEth: bigint
+  targetRaiseEth: bigint,
+  initialBuyEth?: bigint
 ) {
   const targetRaise = ethers.parseEther(targetRaiseEth.toString());
   const name = uniqueName(`GR${pctLabel.replace("%", "")}`);
   const symbol = name;
 
   console.log(`\n╔══════════════════════════════════════════════════`);
-  console.log(`║  Round: ${name}  (${pctLabel}, ${targetRaiseEth} ETH target)`);
+  console.log(`║  Round: ${name}  (${pctLabel}, ${targetRaiseEth} ETH target)` + (initialBuyEth ? `, createAndBuy=${initialBuyEth} ETH` : ""));
   console.log(`╚══════════════════════════════════════════════════`);
 
-  // ── 1. Create sale ──
-  console.log(`\n[1] createSale...`);
   const pumpAddr = await pump.getAddress();
-  const gasEst = await pump.createSale.estimateGas(name, symbol, bps, targetRaise);
-  console.log(`   gasEst: ${gasEst}`);
-  const tx1 = await pump.createSale(name, symbol, bps, targetRaise, {
-    gasLimit: gasEst * 120n / 100n,
-  });
-  const rc1 = await tx1.wait();
-  if (!rc1 || rc1.status === 0) {
-    let reason = `gasUsed=${rc1?.gasUsed}, gasEst=${gasEst}`;
+
+  // ── 1. Create sale (optionally with atomic buy) ──
+  console.log(`\n[1] ${initialBuyEth ? "createAndBuy" : "createSale"}...`);
+  let tokenAddr: string;
+
+  if (initialBuyEth) {
+    const buyValue = ethers.parseEther(initialBuyEth.toString());
+    let gasEst: bigint;
     try {
-      await pump.createSale.staticCall(name, symbol, bps, targetRaise);
-    } catch (callErr: any) {
-      reason += `, revert=${callErr.reason || callErr.message}`;
+      gasEst = await pump.createAndBuy.estimateGas(name, symbol, bps, targetRaise, 0n, { value: buyValue });
+    } catch {
+      console.log("   ⚠️  createAndBuy not supported — redeploy Pump");
+      throw new Error("SKIP_CREATE_AND_BUY");
     }
-    throw new Error(`createSale reverted (${reason})`);
+    console.log(`   gasEst: ${gasEst}`);
+    const tx1 = await pump.createAndBuy(name, symbol, bps, targetRaise, 0n, {
+      value: buyValue,
+      gasLimit: gasEst * 120n / 100n,
+    });
+    const rc1 = await tx1.wait();
+    if (!rc1 || rc1.status === 0) {
+      throw new Error(`createAndBuy reverted (status=0)`);
+    }
+    const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
+    const saleLog = rc1.logs.find((l: any) =>
+      l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
+    );
+    assert.ok(saleLog, `SaleCreated not found in createAndBuy logs`);
+    const parsedSale = pumpIface.parseLog(saleLog);
+    assert.ok(parsedSale, "parseLog failed for SaleCreated in createAndBuy");
+    tokenAddr = parsedSale.args.token;
+  } else {
+    const gasEst = await pump.createSale.estimateGas(name, symbol, bps, targetRaise);
+    console.log(`   gasEst: ${gasEst}`);
+    const tx1 = await pump.createSale(name, symbol, bps, targetRaise, {
+      gasLimit: gasEst * 120n / 100n,
+    });
+    const rc1 = await tx1.wait();
+    if (!rc1 || rc1.status === 0) {
+      let reason = `gasUsed=${rc1?.gasUsed}, gasEst=${gasEst}`;
+      try {
+        await pump.createSale.staticCall(name, symbol, bps, targetRaise);
+      } catch (callErr: any) {
+        reason += `, revert=${callErr.reason || callErr.message}`;
+      }
+      throw new Error(`createSale reverted (${reason})`);
+    }
+    const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
+    const saleLog = rc1.logs.find((l: any) =>
+      l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
+    );
+    assert.ok(saleLog, `SaleCreated not found in ${rc1.logs.length} logs (pump=${pumpAddr})`);
+    const parsedSale = pumpIface.parseLog(saleLog);
+    assert.ok(parsedSale, `parseLog failed for SaleCreated log (topic=${saleLog.topics[0]})`);
+    tokenAddr = parsedSale.args.token;
   }
-  const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
-  const saleLog = rc1.logs.find((l: any) =>
-    l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
-  );
-  assert.ok(saleLog, `SaleCreated not found in ${rc1.logs.length} logs (pump=${pumpAddr})`);
-  const parsedSale = pumpIface.parseLog(saleLog);
-  assert.ok(parsedSale, `parseLog failed for SaleCreated log (topic=${saleLog.topics[0]})`);
-  const tokenAddr: string = parsedSale.args.token;
 
   const token = await ethers.getContractAt(ERC20, tokenAddr);
   console.log(`   Token: ${tokenAddr}`);
@@ -115,19 +149,23 @@ async function runRound(
 
   // ── 3. Dynamic buy stages ──
   console.log(`\n[3] Buying in stages...`);
-  const targetEthNum = targetRaiseEth;
+  const targetEthNum = targetRaiseEth - (initialBuyEth ?? 0n);
   const stages: { eth: bigint; label: string }[] = [];
-  if (targetEthNum >= 250n) {
-    stages.push({ eth: targetEthNum / 4n, label: "25%" });
-    stages.push({ eth: targetEthNum / 4n, label: "50%" });
-    stages.push({ eth: targetEthNum / 4n, label: "75%" });
-    stages.push({ eth: targetEthNum - (targetEthNum / 4n) * 3n, label: "100% (grad)" });
+  if (targetEthNum > 0n) {
+    if (targetEthNum >= 250n) {
+      stages.push({ eth: targetEthNum / 4n, label: "25%" });
+      stages.push({ eth: targetEthNum / 4n, label: "50%" });
+      stages.push({ eth: targetEthNum / 4n, label: "75%" });
+      stages.push({ eth: targetEthNum - (targetEthNum / 4n) * 3n, label: "100% (grad)" });
+    } else {
+      stages.push({ eth: targetEthNum, label: "100% (grad)" });
+    }
   } else {
-    stages.push({ eth: targetEthNum, label: "100% (grad)" });
+    console.log(`   Already fully funded by initial buy`);
   }
 
   const K0 = vGas * vToken;
-  let graduated = false;
+  let graduated = initialBuyEth ? (targetEthNum <= 0n) : false;
 
   for (let i = 0; i < stages.length; i++) {
     if (graduated) {
@@ -279,7 +317,7 @@ async function main() {
   console.log("Pump config ✓\n");
 
   // Balance check
-  const totalNeeded = GRAD_CASES.reduce((sum, c) => sum + c.targetRaise, 0n);
+  const totalNeeded = GRAD_CASES.reduce((sum, c) => sum + c.targetRaise + ((c as any).initialBuy ?? 0n), 0n);
   const buffer = ethers.parseEther("0.5");
   const totalCost = ethers.parseEther(totalNeeded.toString()) + buffer;
   console.log(`Total ETH needed: ~${ethers.formatEther(totalCost)}`);
@@ -293,9 +331,13 @@ async function main() {
   let passed = 0, failed = 0;
   for (const c of GRAD_CASES) {
     try {
-      await runRound(pump, factory, wgas, c.bps, c.label, c.targetRaise);
+      await runRound(pump, factory, wgas, c.bps, c.label, c.targetRaise, (c as any).initialBuy);
       passed++;
     } catch (err: any) {
+      if (err.message?.includes("SKIP_CREATE_AND_BUY")) {
+        console.log(`\n   ⏭️  Skip: contract not upgraded`);
+        continue;
+      }
       console.error(`\n✗ Round ${c.label}/${c.targetRaise}ETH FAILED: ${err.message ?? err}`);
       failed++;
     }

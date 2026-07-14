@@ -12,6 +12,7 @@ const PUMP_ABI = [
   "function uniswapFactory() view returns (address)",
   "function weth() view returns (address)",
   "function createSale(string,string,uint256,uint256) returns (address)",
+  "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 gasRaised, uint256 targetRaise, uint256 virtualGas, uint256 virtualToken, uint256 graduationBps, bool graduated)",
@@ -258,6 +259,56 @@ async function main() {
     }
   }
   console.log("   ✓\n");
+
+  // 9 ── CreateAndBuy atomic test
+  console.log("9. CreateAndBuy atomic...");
+  try {
+    const cbName = "CreateBuyTest";
+    const cbSymbol = "CBT";
+    const cbBps = 7500;
+    const cbTarget = ethers.parseEther("0.002");
+    const cbBuyAmt = ethers.parseEther("0.001");
+    const cbTx = await pump.connect(deployer).createAndBuy(cbName, cbSymbol, cbBps, cbTarget, 0n, {
+      value: cbBuyAmt,
+    });
+    const cbRc = await cbTx.wait();
+    assert.ok(cbRc && cbRc.status === 1, "createAndBuy failed");
+    // Extract token from SaleCreated log
+    const cbAddr = await pump.getAddress();
+    const cbTopic = ethers.id("SaleCreated(address,address,string,string)");
+    const cbLog = cbRc.logs.find((l: any) =>
+      l.topics[0] === cbTopic && l.address.toLowerCase() === cbAddr.toLowerCase()
+    );
+    assert.ok(cbLog, "SaleCreated not found in createAndBuy logs");
+    const cbParsed = pumpIface.parseLog(cbLog);
+    assert.ok(cbParsed, "parseLog failed for createAndBuy SaleCreated");
+    const cbToken: string = cbParsed.args.token;
+    // Verify token created and bought atomically
+    const cbTokenContract = await ethers.getContractAt(ERC20, cbToken);
+    const cbNameCheck = await cbTokenContract.name();
+    const cbSymbolCheck = await cbTokenContract.symbol();
+    assert.strictEqual(cbNameCheck, cbName);
+    assert.strictEqual(cbSymbolCheck, cbSymbol);
+    console.log(`   Token: ${cbToken} (${cbNameCheck}/${cbSymbolCheck})`);
+    // Sale should have gasRaised > 0 and tokensSold > 0 (atomic buy)
+    const cbSale: any = await pump.getSale(cbToken);
+    assert.ok(cbSale.gasRaised > 0n, "gasRaised should be > 0 after createAndBuy");
+    assert.ok(cbSale.tokensSold > 0n, "tokensSold should be > 0 after createAndBuy");
+    console.log(`   gasRaised: ${ethers.formatEther(cbSale.gasRaised)}`);
+    console.log(`   tokensSold: ${ethers.formatEther(cbSale.tokensSold)}`);
+    // Buyer should have received tokens
+    const cbBal = await cbTokenContract.balanceOf(deployer.address);
+    assert.ok(cbBal > 0n, "buyer should have tokens after createAndBuy");
+    console.log(`   Buyer balance: ${ethers.formatEther(cbBal)}`);
+    console.log("   ✓\n");
+  } catch (cbErr: any) {
+    const cbMsg = cbErr?.reason || cbErr?.message || "";
+    if (cbMsg.includes("USE_BUY_FUNCTION") || cbMsg.includes("revert")) {
+      console.log("   ⚠️  Contract not yet upgraded — redeploy Pump to enable createAndBuy.");
+    } else {
+      throw cbErr;
+    }
+  }
 
   console.log("═══════════════════════════════════════════════════");
   console.log("  Pump live test passed! ✓");

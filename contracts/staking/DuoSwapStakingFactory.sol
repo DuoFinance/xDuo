@@ -11,7 +11,8 @@ import "./DuoSwapStaking.sol";
  * @title DuoSwapStakingFactory
  * @dev Deploys single-pool staking contracts and can optionally fund/start rewards at creation time.
  * Does not support Fee-on-Transfer (FoT) reward tokens.
- */
+ * Github repo : https://github.com/DuoFinance/xDuo.git
+**/
 contract DuoSwapStakingFactory is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 

@@ -470,4 +470,116 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       ).to.be.reverted;
     });
   });
+
+  describe("createAndBuy Integration", function () {
+    let cbTokenAddr: string;
+    const CB_BUY = ethers.parseEther("50");
+
+    beforeEach(async function () {
+      await deployInfra();
+      const tx = await pump.createAndBuy("CBToken", "CBT", 8000n, ethers.parseEther("1000"), 0n, {
+        value: CB_BUY,
+      });
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      cbTokenAddr = log!.args.token as string;
+    });
+
+    it("creates sale with correct initial state and tokens issued atomically", async function () {
+      const sale = await pump.getSale(cbTokenAddr);
+      expect(sale.creator).to.equal(owner.address);
+      expect(sale.gasRaised).to.equal(CB_BUY);
+      expect(sale.tokensSold).to.be.gt(0n);
+
+      const token = PumpToken__factory.connect(cbTokenAddr, owner);
+      const balance = await token.balanceOf(owner.address);
+      expect(balance).to.be.gt(0n);
+    });
+
+    it("allows further buys and sells after createAndBuy", async function () {
+      await pump.connect(user1).buy(cbTokenAddr, 0n, { value: ethers.parseEther("30") });
+      const token = PumpToken__factory.connect(cbTokenAddr, user1);
+      const user1Bal = await token.balanceOf(user1.address);
+      expect(user1Bal).to.be.gt(0n);
+
+      const sellAmt = user1Bal / 3n;
+      await token.connect(user1).approve(await pump.getAddress(), sellAmt);
+      await pump.connect(user1).sell(cbTokenAddr, sellAmt, 0n);
+      expect(await token.balanceOf(user1.address)).to.equal(user1Bal - sellAmt);
+    });
+
+    it("can graduate and create Uniswap V2 pair after createAndBuy", async function () {
+      const sale = await pump.getSale(cbTokenAddr);
+      const remaining = sale.targetRaise - sale.gasRaised;
+
+      await ethers.provider.send("hardhat_setBalance", [
+        owner.address, "0x1000000000000000000000",
+      ]);
+      const gradTx = await pump.connect(owner).buy(cbTokenAddr, 0n, { value: remaining });
+      const rc = await gradTx.wait();
+      const gradLog = rc!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleGraduated");
+
+      expect(gradLog).to.not.be.undefined;
+      const pairAddr = gradLog!.args.pair as string;
+      expect(pairAddr).to.not.equal(ethers.ZeroAddress);
+
+      const pair = UniswapV2Pair__factory.connect(pairAddr, owner);
+      const [r0, r1] = await pair.getReserves();
+      expect(r0).to.be.gt(0n);
+      expect(r1).to.be.gt(0n);
+    });
+
+    it("preserves price continuity through createAndBuy, further trades, and graduation", async function () {
+      // User1 buys more after the atomic createAndBuy
+      await pump.connect(user1).buy(cbTokenAddr, 0n, { value: ethers.parseEther("20") });
+
+      // Graduate
+      const sale = await pump.getSale(cbTokenAddr);
+      const remaining = sale.targetRaise - sale.gasRaised;
+      await ethers.provider.send("hardhat_setBalance", [
+        owner.address, "0x1000000000000000000000",
+      ]);
+      const gradTx = await pump.connect(owner).buy(cbTokenAddr, 0n, { value: remaining + ethers.parseEther("1") });
+      const rc = await gradTx.wait();
+      const gradLog = rc!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleGraduated");
+      const pairAddr = gradLog!.args.pair as string;
+      const pair = UniswapV2Pair__factory.connect(pairAddr, owner);
+
+      const sGrad = await pump.getSale(cbTokenAddr);
+      const bcGas = sGrad.virtualGas + sGrad.gasRaised;
+      const bcToken = sGrad.virtualToken - sGrad.tokensSold;
+
+      const [r0, r1] = await pair.getReserves();
+      const wethAddr = await weth.getAddress();
+      const t0 = await pair.token0();
+      const uniGas = t0.toLowerCase() === wethAddr.toLowerCase() ? r0 : r1;
+      const uniToken = t0.toLowerCase() === wethAddr.toLowerCase() ? r1 : r0;
+
+      const lhs = bcGas * uniToken;
+      const rhs = uniGas * bcToken;
+      const diff = lhs > rhs ? lhs - rhs : rhs - lhs;
+      expect(diff * 1000000n).to.be.lt(lhs + rhs);
+    });
+
+    it("createAndBuy with value exceeding targetRaise refunds overpayment", async function () {
+      await deployInfra();
+      const targetRaise = ethers.parseEther("10");
+      const overpay = targetRaise + ethers.parseEther("5");
+      const balBefore = await ethers.provider.getBalance(owner.address);
+
+      const tx = await pump.createAndBuy("Over", "OVR", 8000n, targetRaise, 0n, { value: overpay });
+      const rc = await tx.wait();
+      const gasCost = rc!.gasUsed * rc!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(owner.address);
+      const netSpent = balBefore - balAfter - gasCost;
+
+      expect(netSpent).to.be.closeTo(targetRaise, ethers.parseEther("0.01"));
+    });
+  });
 });

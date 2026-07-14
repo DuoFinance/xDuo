@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /**
  * @title DuoSwapStaking
  * @dev Single pool staking contract for DuoSwap ecosystem.
+ * Github repo : https://github.com/DuoFinance/xDuo.git
  * Refactored for maximum security using OpenZeppelin standards.
  * This contract does NOT support Fee-on-Transfer (FoT) tokens.
  */

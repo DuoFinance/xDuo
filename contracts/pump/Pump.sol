@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /// @title Pump - pump.fun style Fair Launch contract
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
-/// @dev Mirrors pump.fun core logic:
+/// @dev Github repo : https://github.com/DuoFinance/xDuo.git
 ///   - Internal bonding curve two-way trading
 ///   - Graduates when raised GAS reaches TARGET_RAISE or p token sold 
 ///   - All remaining tokens + GAS go into Uniswap V2 on graduation
@@ -16,6 +16,7 @@ import "./Constants.sol";
 import "./CurveMath.sol";
 import "./TokenTemplate.sol";
 import "./IUniswapV2.sol";
+
 
 contract Pump is IPump, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -63,45 +64,7 @@ contract Pump is IPump, ReentrancyGuard {
         uint256 graduationBps,
         uint256 targetRaise
     ) external returns (address token) {
-        require(graduationBps >= Constants.MIN_GRADUATION_BPS, "INVALID_GRADUATION_MIN");
-        require(graduationBps <= Constants.MAX_GRADUATION_BPS, "INVALID_GRADUATION_MAX");
-        require(targetRaise > 0, "INVALID_TARGET_RAISE");
-
-        // Deploy token, all supply goes to this contract
-        token = address(new PumpToken(
-            name,
-            symbol,
-            Constants.DECIMALS,
-            Constants.TOTAL_SUPPLY,
-            address(this)
-        ));
-
-        // Calculate virtual pool parameters (P = p / BPS_DENOM)
-        // vToken = T * p² / BPS_DENOM / (2p - BPS_DENOM)
-        // vGas   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
-        uint256 p = graduationBps;
-        require(2 * p > Constants.BPS_DENOMINATOR, "INVALID_GRADUATION");
-        uint256 twoPminusOne = 2 * p - Constants.BPS_DENOMINATOR;
-
-        uint256 pSquared = p * p;
-        uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / (Constants.BPS_DENOMINATOR * twoPminusOne);
-        uint256 vGas   = targetRaise * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
-
-        sales[token] = SaleInfo({
-            creator: msg.sender,
-            totalSupply: Constants.TOTAL_SUPPLY,
-            tokensSold: 0,
-            gasRaised: 0,
-            targetRaise: targetRaise,
-            virtualGas: vGas,
-            virtualToken: vToken,
-            graduationBps: p,
-            graduated: false,
-            pair: address(0)
-        });
-
-        emit SaleCreated(msg.sender, token, name, symbol);
-        return token;
+        token = _createSale(name, symbol, graduationBps, targetRaise, msg.sender);
     }
 
     /* ============ Buy ============ */
@@ -113,49 +76,23 @@ contract Pump is IPump, ReentrancyGuard {
         nonReentrant
         returns (uint256 tokensOut)
     {
-        SaleInfo storage s = sales[token];
         require(msg.value > 0, "ZERO_GAS");
+        tokensOut = _buy(token, msg.value, minTokensOut, msg.sender);
+    }
 
-        // 1. Calculate current virtual reserves
-        uint256 gasReserve   = s.virtualGas + s.gasRaised;
-        uint256 tokenReserve = s.virtualToken - s.tokensSold;
-        require(tokenReserve > 0, "NO_TOKENS_LEFT");
-
-        // 2. Calculate tokens due
-        uint256 gasIn = msg.value;
-        tokensOut = CurveMath.getAmountOut(gasReserve, tokenReserve, gasIn);
-        require(tokensOut > 0, "ZERO_TOKENS");
-        require(tokensOut >= minTokensOut, "SLIPPAGE");
-
-        // 3. Prevent buying all before graduation, cap at graduation point (P * T)
-        uint256 maxTokens = s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
-        uint256 remainingToGrad = maxTokens - s.tokensSold;
-        uint256 refund = 0;
-        if (tokensOut > remainingToGrad) {
-            tokensOut = remainingToGrad;
-            gasIn = CurveMath.getAmountIn(gasReserve, tokenReserve, tokensOut);
-            refund = msg.value - gasIn;
-        }
-
-        // 4. Update state (Checks-Effects-Interactions: state changes before external calls)
-        s.tokensSold += tokensOut;
-        s.gasRaised  += gasIn;
-
-        // 5. Transfer tokens to buyer
-        IERC20(token).safeTransfer(msg.sender, tokensOut);
-
-        // 6. Refund overpaid GAS (after state changes)
-        if (refund > 0) {
-            (bool ok, ) = msg.sender.call{value: refund}("");
-            require(ok, "REFUND_FAILED");
-        }
-
-        emit TokensPurchased(msg.sender, token, gasIn, tokensOut);
-
-        // 7. Check if graduated (GAS target reached OR all graduation tokens sold)
-        if (s.gasRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
-            _graduate(token);
-        }
+    /* ============ Create and Buy ============ */
+    /// @notice Atomically create a sale and immediately buy into it, eliminating
+    ///         same-block sniping risk on the creation transaction itself.
+    function createAndBuy(
+        string calldata name,
+        string calldata symbol,
+        uint256 graduationBps,
+        uint256 targetRaise,
+        uint256 minTokensOut
+    ) external payable nonReentrant returns (address token, uint256 tokensOut) {
+        require(msg.value > 0, "ZERO_GAS");
+        token = _createSale(name, symbol, graduationBps, targetRaise, msg.sender);
+        tokensOut = _buy(token, msg.value, minTokensOut, msg.sender);
     }
 
     /* ============ Sell ============ */
@@ -191,6 +128,108 @@ contract Pump is IPump, ReentrancyGuard {
         require(ok, "GAS_TRANSFER_FAILED");
 
         emit TokensSold(msg.sender, token, tokensIn, gasOut);
+    }
+
+    /* ============ Internal: Create Sale ============ */
+    /// @dev Shared core logic for createSale() and createAndBuy(). Deploys the token,
+    ///      computes virtual reserves, and stores the SaleInfo.
+    function _createSale(
+        string calldata name,
+        string calldata symbol,
+        uint256 graduationBps,
+        uint256 targetRaise,
+        address creator
+    ) internal returns (address token) {
+        require(graduationBps >= Constants.MIN_GRADUATION_BPS, "INVALID_GRADUATION_MIN");
+        require(graduationBps <= Constants.MAX_GRADUATION_BPS, "INVALID_GRADUATION_MAX");
+        require(targetRaise > 0, "INVALID_TARGET_RAISE");
+
+        // Deploy token, all supply goes to this contract
+        token = address(new PumpToken(
+            name,
+            symbol,
+            Constants.DECIMALS,
+            Constants.TOTAL_SUPPLY,
+            address(this)
+        ));
+
+        // Calculate virtual pool parameters (P = p / BPS_DENOM)
+        // vToken = T * p² / BPS_DENOM / (2p - BPS_DENOM)
+        // vGas   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
+        uint256 p = graduationBps;
+        require(2 * p > Constants.BPS_DENOMINATOR, "INVALID_GRADUATION");
+        uint256 twoPminusOne = 2 * p - Constants.BPS_DENOMINATOR;
+
+        uint256 pSquared = p * p;
+        uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / (Constants.BPS_DENOMINATOR * twoPminusOne);
+        uint256 vGas   = targetRaise * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
+
+        sales[token] = SaleInfo({
+            creator: creator,
+            totalSupply: Constants.TOTAL_SUPPLY,
+            tokensSold: 0,
+            gasRaised: 0,
+            targetRaise: targetRaise,
+            virtualGas: vGas,
+            virtualToken: vToken,
+            graduationBps: p,
+            graduated: false,
+            pair: address(0)
+        });
+
+        emit SaleCreated(creator, token, name, symbol);
+    }
+
+    /* ============ Internal: Buy ============ */
+    /// @dev Shared core logic for buy() and createAndBuy(). Assumes the caller has already
+    ///      verified saleActive (buy() via modifier; createAndBuy() by construction, since
+    ///      the sale was just created in the same transaction).
+    function _buy(address token, uint256 gasIn, uint256 minTokensOut, address buyer)
+        internal
+        returns (uint256 tokensOut)
+    {
+        SaleInfo storage s = sales[token];
+
+        // 1. Calculate current virtual reserves
+        uint256 gasReserve   = s.virtualGas + s.gasRaised;
+        uint256 tokenReserve = s.virtualToken - s.tokensSold;
+        require(tokenReserve > 0, "NO_TOKENS_LEFT");
+
+        // 2. Calculate tokens due
+        tokensOut = CurveMath.getAmountOut(gasReserve, tokenReserve, gasIn);
+        require(tokensOut > 0, "ZERO_TOKENS");
+        require(tokensOut >= minTokensOut, "SLIPPAGE");
+
+        // 3. Prevent buying all before graduation, cap at graduation point (P * T)
+        uint256 maxTokens = s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
+        uint256 remainingToGrad = maxTokens - s.tokensSold;
+        uint256 refund = 0;
+        uint256 gasInOriginal = gasIn;
+        if (tokensOut > remainingToGrad) {
+            tokensOut = remainingToGrad;
+            gasIn = CurveMath.getAmountIn(gasReserve, tokenReserve, tokensOut);
+            refund = gasInOriginal - gasIn;
+        }
+
+        // 4. Update state (Checks-Effects-Interactions: state changes before external calls)
+        s.tokensSold += tokensOut;
+        s.gasRaised  += gasIn;
+
+        // 5. Transfer tokens to buyer
+        IERC20(token).safeTransfer(buyer, tokensOut);
+
+        // 6. Refund overpaid GAS (after state changes)
+        if (refund > 0) {
+            (bool ok, ) = buyer.call{value: refund}("");
+            require(ok, "REFUND_FAILED");
+        }
+
+        emit TokensPurchased(buyer, token, gasIn, tokensOut);
+
+        // 7. Check if graduated (GAS target reached OR all graduation tokens sold)
+        if (s.gasRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
+            _graduate(token);
+        }
     }
 
     /* ============ Graduation ============ */

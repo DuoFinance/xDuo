@@ -15,6 +15,7 @@ let pumpAddr: string, routerAddr: string, wgasAddr: string, factoryAddr: string;
 
 const ABI = [
   "function createSale(string,string,uint256,uint256) returns (address)",
+  "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
@@ -32,6 +33,19 @@ async function sale(contract: any, n: string, s: string, b = 8000, t?: bigint): 
     if (p?.name === "SaleCreated") return p.args.token as string;
   }
   throw new Error("SaleCreated not found");
+}
+
+async function saleCreateAndBuy(contract: any, n: string, s: string, b = 8000, t?: bigint, v?: bigint): Promise<string> {
+  const target = t ?? ethers.parseEther("1000");
+  const value = v ?? ethers.parseEther("1");
+  const tx = await contract.createAndBuy(n, s, b, target, 0n, { value });
+  const rc = await tx.wait();
+  for (const l of rc!.logs) {
+    if (l.address.toLowerCase() !== pumpAddr.toLowerCase()) continue;
+    const p = saleIface.parseLog(l);
+    if (p?.name === "SaleCreated") return p.args.token as string;
+  }
+  throw new Error("SaleCreated not found in createAndBuy");
 }
 
 function tok(addr: string, s?: any) {
@@ -209,8 +223,33 @@ async function main() {
   const [,,,g6,,,,] = await P.getSale(t6);
   g6 === 0n ? _log(PASS, "Forced ETH doesn't affect gasRaised") : _log(FAIL, "gasRaised tainted");
 
-  // ──── 7. FULL LIFECYCLE ────
-  console.log(`\n${"=".repeat(60)}\n  7. FULL LIFECYCLE\n${"=".repeat(60)}`);
+  // ──── 7. CREATE AND BUY ────
+  console.log(`\n${"=".repeat(60)}\n  7. CREATE AND BUY\n${"=".repeat(60)}`);
+  try {
+    const t7cb = await saleCreateAndBuy(P, "CreateBuy", "CB1", 8000, ethers.parseEther("100"), ONE * 10n);
+    const T7cb = tok(t7cb, victim);
+    const cbBal = await T7cb.balanceOf(deployer.address);
+    if (cbBal > 0n) {
+      _log(PASS, `Tokens received atomically: ${ethers.formatEther(cbBal)}`);
+      const [,,,gCb,,,,] = await P.getSale(t7cb);
+      gCb > 0n ? _log(PASS, `gasRaised > 0 after createAndBuy: ${ethers.formatEther(gCb)}`) : _log(FAIL, "gasRaised = 0");
+      await buy(victim, "Buy after createAndBuy", t7cb, ONE * 50n);
+      const t7cbAttackerBal = await tok(t7cb, attacker).balanceOf(attacker.address);
+      if (t7cbAttackerBal > 0n) {
+        _log(INFO, `Attacker tokens: ${ethers.formatEther(t7cbAttackerBal)}`);
+      }
+      await T7cb.connect(deployer).approve(pumpAddr, cbBal);
+      await sell(deployer, "Sell initial tokens", t7cb, cbBal);
+    } else {
+      _log(WARN, "No tokens from createAndBuy (price too high?)");
+    }
+  } catch (e: any) {
+    _log(WARN, `createAndBuy unavailable on this contract (${(e?.message || "").slice(0,60)})`);
+    _log(INFO, "Redeploy Pump to enable createAndBuy test");
+  }
+
+  // ──── 8. FULL LIFECYCLE ────
+  console.log(`\n${"=".repeat(60)}\n  8. FULL LIFECYCLE\n${"=".repeat(60)}`);
   const t7 = await sale(P, "FullLife", "FUL", 8000, ethers.parseEther("600"));
   const T7 = tok(t7, victim);
   await buy(victim, "Victim buys 300", t7, ONE * 300n);

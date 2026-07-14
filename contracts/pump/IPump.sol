@@ -12,6 +12,7 @@ interface IPump {
 
     /* ============ Core Methods ============ */
     function createSale(string calldata name, string calldata symbol, uint256 graduationBps, uint256 targetRaise) external returns (address token);
+    function createAndBuy(string calldata name, string calldata symbol, uint256 graduationBps, uint256 targetRaise, uint256 minTokensOut) external payable returns (address token, uint256 tokensOut);
     function buy(address token, uint256 minTokensOut) external payable returns (uint256 tokensOut);
     function sell(address token, uint256 tokensIn, uint256 minGasOut) external returns (uint256 gasOut);
 

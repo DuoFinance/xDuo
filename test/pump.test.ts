@@ -278,4 +278,102 @@ describe("Pump — static functions", function () {
       ).to.be.revertedWith("SALE_GRADUATED");
     });
   });
+
+  describe("createAndBuy", function () {
+    let tokenAddr: string;
+    let buyValue: bigint;
+
+    beforeEach(async function () {
+      buyValue = ethers.parseEther("1");
+      const tx = await pump.createAndBuy("CB", "CB", 8000n, ethers.parseEther("1000"), 0n, {
+        value: buyValue,
+      });
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      tokenAddr = log!.args.token as string;
+    });
+
+    it("creates sale and buys atomically", async function () {
+      const token = PumpToken__factory.connect(tokenAddr, user);
+      expect(await token.name()).to.equal("CB");
+      expect(await token.symbol()).to.equal("CB");
+
+      const sale = await pump.getSale(tokenAddr);
+      expect(sale.gasRaised).to.be.gt(0n);
+      expect(sale.tokensSold).to.be.gt(0n);
+      expect(sale.creator).to.equal(owner.address);
+
+      const balance = await token.balanceOf(owner.address);
+      expect(balance).to.be.gt(0n);
+    });
+
+    it("reverts with zero value", async function () {
+      await expect(
+        pump.createAndBuy("Zero", "ZRO", 8000n, ethers.parseEther("1000"), 0n, { value: 0n })
+      ).to.be.revertedWith("ZERO_GAS");
+    });
+
+    it("reverts with excessive slippage", async function () {
+      const maxOut = ethers.parseEther("999999999");
+      await expect(
+        pump.createAndBuy("Slippage", "SLP", 8000n, ethers.parseEther("1000"), maxOut, {
+          value: ethers.parseEther("0.001"),
+        })
+      ).to.be.revertedWith("SLIPPAGE");
+    });
+
+    it("supports buy and sell after createAndBuy", async function () {
+      const token = PumpToken__factory.connect(tokenAddr, owner);
+      const bal = await token.balanceOf(owner.address);
+
+      await pump.connect(user).buy(tokenAddr, 0n, { value: ethers.parseEther("5") });
+      expect(await token.balanceOf(user.address)).to.be.gt(0n);
+
+      await token.connect(owner).approve(await pump.getAddress(), bal);
+      await pump.connect(owner).sell(tokenAddr, bal / 2n, 0n);
+      expect(await token.balanceOf(owner.address)).to.equal(bal - bal / 2n);
+    });
+
+    it("triggers graduation when buying past targetRaise", async function () {
+      const targetRaise = ethers.parseEther("5");
+      const tx = await pump.createAndBuy("Grad", "GRD", 8000n, targetRaise, 0n, {
+        value: targetRaise,
+      });
+      const receipt = await tx.wait();
+      const log = receipt!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      const addr = log!.args.token as string;
+
+      const sale = await pump.getSale(addr);
+      expect(sale.graduated).to.equal(true);
+      // Integer division rounding can leave gasRaised 1 wei below targetRaise
+      expect(sale.gasRaised + 1n).to.be.gte(targetRaise);
+    });
+
+    it("refunds overpayment when buy exceeds graduation point", async function () {
+      const targetRaise = ethers.parseEther("5");
+      const overpay = targetRaise + ethers.parseEther("2");
+      const balBefore = await ethers.provider.getBalance(owner.address);
+
+      const tx = await pump.createAndBuy("Overpay", "OVR", 8000n, targetRaise, 0n, {
+        value: overpay,
+      });
+      const receipt = await tx.wait();
+      const gasCost = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(owner.address);
+      const netSpent = balBefore - balAfter - gasCost;
+
+      expect(netSpent).to.be.lt(overpay);
+      expect(netSpent).to.be.closeTo(targetRaise, ethers.parseEther("0.01"));
+    });
+
+    it("reverts createAndBuy with invalid graduation BPS", async function () {
+      await expect(
+        pump.createAndBuy("Bad", "BAD", 5000n, ethers.parseEther("1000"), 0n, { value: ethers.parseEther("1") })
+      ).to.be.revertedWith("INVALID_GRADUATION_MIN");
+    });
+  });
 });

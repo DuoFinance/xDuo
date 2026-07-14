@@ -39,10 +39,9 @@ async function main() {
     throw new Error("WGAS mismatch!");
   }
 
-  // 4. Deploy Pump
-  const pumpOverrides: any = { gasLimit: 3_000_000n };
+  // 4. Deploy Pump (constructors: uniswapFactory_, weth_)
   const Pump = await ethers.getContractFactory("Pump");
-  const pump = await Pump.deploy(routerAddress, pumpOverrides);
+  const pump = await Pump.deploy(factoryAddress, WGAS_ADDRESS, { gasLimit: 3_000_000n });
   await pump.waitForDeployment();
   const pumpAddress = await pump.getAddress();
   console.log("Pump:", pumpAddress);

@@ -600,4 +600,86 @@ describe("Pump Invariants & Boundary Tests", function () {
       await fuzzRound(8000, 30);
     });
   });
-});
+
+  // ─── CREATE AND BUY ─────────────────────────────────────────
+  describe("createAndBuy", function () {
+    let tokenAddr: string;
+    let K0: bigint;
+
+    async function deployAndCreateBuy(bps: number, targetRaise: bigint, buyValue: bigint) {
+      [owner, user1] = await ethers.getSigners();
+      const WETH = await ethers.getContractFactory("WETH9");
+      weth = await WETH.deploy();
+      await weth.waitForDeployment();
+      const factory = await new UniswapV2Factory__factory(owner).deploy(owner.address);
+      await factory.waitForDeployment();
+      const router = await new UniswapV2Router02__factory(owner).deploy(
+        await factory.getAddress(), await weth.getAddress()
+      );
+      await router.waitForDeployment();
+      pump = await new Pump__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
+      await pump.waitForDeployment();
+
+      const tx = await pump.createAndBuy("CB", "CB", bps, targetRaise, 0n, { value: buyValue });
+      const rc = await tx.wait();
+      const log = rc!.logs
+        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .find((p: any) => p?.name === "SaleCreated");
+      tokenAddr = log!.args.token as string;
+      token = PumpToken__factory.connect(tokenAddr, owner);
+    }
+
+    it("k approximately unchanged after atomic create+buy", async function () {
+      await deployAndCreateBuy(8000, ethers.parseEther("1000"), ethers.parseEther("10"));
+      const s = await pump.getSale(tokenAddr);
+      const k = (s.virtualGas + s.gasRaised) * (s.virtualToken - s.tokensSold);
+      const k0 = s.virtualGas * s.virtualToken;
+      const diff = k > k0 ? k - k0 : k0 - k;
+      // Accept tiny drift from integer division rounding
+      expect(diff * 1_000_000_000_000_000_000n).to.be.lt(k + k0);
+    });
+
+    it("k unchanged after createAndBuy → buy → sell", async function () {
+      await deployAndCreateBuy(8000, ethers.parseEther("1000"), ethers.parseEther("10"));
+      const s0 = await pump.getSale(tokenAddr);
+      K0 = (s0.virtualGas + s0.gasRaised) * (s0.virtualToken - s0.tokensSold);
+
+      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("5") });
+      let s1 = await pump.getSale(tokenAddr);
+      let k1 = (s1.virtualGas + s1.gasRaised) * (s1.virtualToken - s1.tokensSold);
+      let diff1 = k1 > K0 ? k1 - K0 : K0 - k1;
+      expect(diff1 * 1_000_000_000_000_000_000n).to.be.lt(k1 + K0);
+
+      const bal = await token.balanceOf(owner.address);
+      await token.connect(owner).approve(await pump.getAddress(), bal / 2n);
+      await pump.connect(owner).sell(tokenAddr, bal / 2n, 0n);
+      s1 = await pump.getSale(tokenAddr);
+      k1 = (s1.virtualGas + s1.gasRaised) * (s1.virtualToken - s1.tokensSold);
+      diff1 = k1 > K0 ? k1 - K0 : K0 - k1;
+      expect(diff1 * 1_000_000_000_000_000_000n).to.be.lt(k1 + K0);
+    });
+
+    it("reverts createAndBuy with zero value", async function () {
+      await deployAndCreateBuy(8000, ethers.parseEther("1000"), ethers.parseEther("1"));
+      // Create a second sale attempt with zero value should revert
+      await expect(
+        pump.createAndBuy("Zero", "ZRO", 8000, ethers.parseEther("1000"), 0n, { value: 0n })
+      ).to.be.revertedWith("ZERO_GAS");
+    });
+
+    it("reverts createAndBuy with excessive slippage", async function () {
+      await expect(
+        pump.createAndBuy("Slip", "SLP", 8000, ethers.parseEther("1000"), ethers.parseEther("1000000"), {
+          value: ethers.parseEther("0.001"),
+        })
+      ).to.be.revertedWith("SLIPPAGE");
+    });
+
+    it("pump holds (totalSupply - tokensSold) tokens after createAndBuy", async function () {
+      await deployAndCreateBuy(8000, ethers.parseEther("1000"), ethers.parseEther("10"));
+      const pumpAddr = await pump.getAddress();
+      const s = await pump.getSale(tokenAddr);
+      expect(await token.balanceOf(pumpAddr)).to.equal(s.totalSupply - s.tokensSold);
+    });
+  });
+})
