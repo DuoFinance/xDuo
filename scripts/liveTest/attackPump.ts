@@ -79,6 +79,8 @@ async function main() {
   const victim = new ethers.Wallet(PK2, ethers.provider);
   const deployer = victim; // victim has most ETH left
 
+  let anyGrad = false;
+
   _log(INFO, "Loading deployed contracts...");
   const deployed = JSON.parse(
     fs.readFileSync(path.join(__dirname, "..","..", "deployed.json"), "utf8")
@@ -184,7 +186,7 @@ async function main() {
     if (tr4 > g4) await buy(victim, "Graduation buy", t4, BigInt(tr4) - BigInt(g4) + ethers.parseEther("10"));
     else _log(WARN, "Already at/over target");
     const [,,,,,,,, grad4] = await P.getSale(t4);
-    grad4 ? _log(PASS, "Graduated") : _log(FAIL, "Not graduated");
+    if (grad4) { _log(PASS, "Graduated"); anyGrad = true; } else _log(FAIL, "Not graduated");
   }
 
   // ──── 5. POST-GRAD ────
@@ -194,8 +196,14 @@ async function main() {
   // Buy 500 ETH first, then 500 more
   await buy(victim, "Buy 500", t5, ONE * 500n);
   await buy(victim, "Buy 500 more + overpay", t5, ONE * 510n);
-  const [,,,,,,,, g5] = await P.getSale(t5);
-  g5 ? _log(PASS, "Sale graduated") : _log(FAIL, "Not graduated - Router/pair init code mismatch likely");
+  const [cr5, ts5, tsold5, gr5, tr5,,,, g5] = await P.getSale(t5);
+  if (g5) {
+    _log(PASS, "Sale graduated");
+    anyGrad = true;
+  } else {
+    const maxT5 = ts5 * 8000n / 10000n;
+    _log(FAIL, `Not graduated (gasRaised ${ethers.formatEther(gr5)}/${ethers.formatEther(tr5)}, tokensSold ${ethers.formatEther(tsold5)}/${ethers.formatEther(maxT5)})`);
+  }
   await buy(attacker, "Buy after grad", t5, ONE, 0n, g5);
   const at5 = await tok(t5, attacker);
   const ab5 = await at5.balanceOf(attacker.address);
@@ -262,7 +270,7 @@ async function main() {
     _log(INFO, `gasRaised: ${ethers.formatEther(g7)}/${ethers.formatEther(tr7)}`);
     if (tr7 > g7) await buy(victim, "Final buy to graduate", t7, BigInt(tr7) - BigInt(g7) + ethers.parseEther("10"));
     const [,,,,,,,, g7b] = await P.getSale(t7);
-    g7b ? _log(PASS, "Lifecycle complete") : _log(FAIL, "Not graduated");
+    if (g7b) { _log(PASS, "Lifecycle complete"); anyGrad = true; } else _log(FAIL, "Not graduated");
     const p7 = await factoryC.getPair(t7, wgasAddr);
     p7 !== ethers.ZeroAddress ? _log(PASS, "Uniswap pair exists") : _log(FAIL, "No pair");
   }
@@ -270,7 +278,7 @@ async function main() {
   // ──── SUMMARY ────
   console.log(`\n${"=".repeat(60)}\n  SUMMARY\n${"=".repeat(60)}`);
   await bal("Deployer", deployer); await bal("Attacker", attacker); await bal("Victim", victim);
-  _log(INFO, `Graduation works: ${g5 ? "YES" : "NO (init code hash mismatch in pairFor)"}`);
+  _log(INFO, `Graduation mechanism: ${anyGrad ? "WORKS ✓" : "NOT TRIGGERED — check threshold vs buys"}`);
 }
 
 main().catch(e => { console.error("FATAL:", e); process.exitCode = 1; });

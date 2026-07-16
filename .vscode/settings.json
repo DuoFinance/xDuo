@@ -1,0 +1,5 @@
+{
+  "solidity.includePath": [
+    "lib/forge-std/src"
+  ]
+}

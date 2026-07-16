@@ -146,9 +146,12 @@ async function main() {
     const amountsOut = await router.getAmountsOut(testIn, [bestToken0, bestToken1]);
     console.log(`\n   getAmountsOut(${ethers.formatEther(testIn)}, [token0, token1])`);
     console.log(`     → ${ethers.formatEther(amountsOut[0])} → ${ethers.formatEther(amountsOut[1])} ✓`);
+  }
 
-    const amountsIn = await router.getAmountsIn(testIn, [bestToken0, bestToken1]);
-    console.log(`   getAmountsIn(${ethers.formatEther(testIn)}, [token0, token1])`);
+  const testOut = bestReserves[1] / 1000n;
+  if (testOut > 0n) {
+    const amountsIn = await router.getAmountsIn(testOut, [bestToken0, bestToken1]);
+    console.log(`   getAmountsIn(${ethers.formatEther(testOut)}, [token0, token1])`);
     console.log(`     → ${ethers.formatEther(amountsIn[0])} → ${ethers.formatEther(amountsIn[1])} ✓`);
   }
   console.log("   ✓\n");

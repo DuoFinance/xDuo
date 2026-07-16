@@ -1,0 +1,16 @@
+[profile.default]
+src = "contracts/pump"
+out = "out"
+libs = ["lib", "node_modules"]
+test = "testSol"
+solc = "0.8.24"
+via_ir = true
+optimizer = true
+ffi = false
+
+remappings = [
+    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+]
+
+[rpc_endpoints]
+neox_mainnet = "https://mainnet-1.rpc.banelabs.org"
