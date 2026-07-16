@@ -1,10 +1,9 @@
 {
   "solidity.remappings": [
-    "forge-std/=/home/dev/code/Duo/xDuo/lib/forge-std/src/",
-    "@openzeppelin/=/home/dev/code/Duo/xDuo/node_modules/@openzeppelin/"
+    "forge-std/=lib/forge-std/src/"
   ],
   "solidity.includePath": [
-    "/home/dev/code/Duo/xDuo/lib/forge-std/src",
-    "/home/dev/code/Duo/xDuo/node_modules"
+    "lib/forge-std/src",
+    "node_modules"
   ]
 }
