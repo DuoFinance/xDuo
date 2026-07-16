@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Pump - pump.fun style Fair Launch contract
+/// @title DuoLaunch - pump.fun style Fair Launch contract
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
 /// @dev Github repo : https://github.com/DuoFinance/xDuo.git
 ///   - Internal bonding curve two-way trading
@@ -11,14 +11,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import "./IPump.sol";
+import "./IDuo.sol";
 import "./Constants.sol";
 import "./CurveMath.sol";
 import "./TokenTemplate.sol";
 import "./IUniswapV2.sol";
 
 
-contract Pump is IPump, ReentrancyGuard {
+contract DuoLaunch is IDuo, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /* ============ Data Structures ============ */
@@ -57,7 +57,7 @@ contract Pump is IPump, ReentrancyGuard {
     }
 
     /* ============ Create Sale ============ */
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
     function createSale(
         string calldata name,
         string calldata symbol,
@@ -68,7 +68,7 @@ contract Pump is IPump, ReentrancyGuard {
     }
 
     /* ============ Buy ============ */
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
     function buy(address token, uint256 minTokensOut)
         external
         payable
@@ -96,7 +96,7 @@ contract Pump is IPump, ReentrancyGuard {
     }
 
     /* ============ Sell ============ */
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
     function sell(address token, uint256 tokensIn, uint256 minGasOut)
         external
         saleActive(token)
@@ -145,7 +145,7 @@ contract Pump is IPump, ReentrancyGuard {
         require(targetRaise > 0, "INVALID_TARGET_RAISE");
 
         // Deploy token, all supply goes to this contract
-        token = address(new PumpToken(
+        token = address(new TokenTemplate(
             name,
             symbol,
             Constants.DECIMALS,
@@ -272,7 +272,14 @@ contract Pump is IPump, ReentrancyGuard {
     }
 
     /* ============ Queries ============ */
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
+    function getPair(address token) external view returns (address) {
+        SaleInfo storage s = sales[token];
+        require(s.creator != address(0), "SALE_NOT_EXIST");
+        return s.pair;
+    }
+
+    /// @inheritdoc IDuo
     function getSale(address token) external view returns (
         address creator,
         uint256 totalSupply,
@@ -290,7 +297,7 @@ contract Pump is IPump, ReentrancyGuard {
                 s.targetRaise, s.virtualGas, s.virtualToken, s.graduationBps, s.graduated);
     }
 
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
     function getCurrentPrice(address token) external view returns (uint256) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
@@ -302,7 +309,7 @@ contract Pump is IPump, ReentrancyGuard {
         return gasReserve * 1e18 / tokenReserve;
     }
 
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
     function getTokensForGas(address token, uint256 gasAmount) external view returns (uint256) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
@@ -312,7 +319,7 @@ contract Pump is IPump, ReentrancyGuard {
         return CurveMath.getAmountOut(gasReserve, tokenReserve, gasAmount);
     }
 
-    /// @inheritdoc IPump
+    /// @inheritdoc IDuo
     function getGasForTokens(address token, uint256 tokenAmount) external view returns (uint256) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");

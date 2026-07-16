@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title IPump - pump.fun style Fair Launch interface
+/// @title IDuo - pump.fun style Fair Launch interface
 /// @notice Uses x*y=k CP-AMM virtual pool, auto-creates Uniswap V2 pool on graduation
-interface IPump {
+interface IDuo {
     /* ============ Events ============ */
     event SaleCreated(address indexed creator, address indexed token, string name, string symbol);
     event TokensPurchased(address indexed buyer, address indexed token, uint256 gasIn, uint256 tokensOut);
@@ -17,6 +17,8 @@ interface IPump {
     function sell(address token, uint256 tokensIn, uint256 minGasOut) external returns (uint256 gasOut);
 
     /* ============ Queries ============ */
+    function getPair(address token) external view returns (address);
+
     function getSale(address token) external view returns (
         address creator,
         uint256 totalSupply,

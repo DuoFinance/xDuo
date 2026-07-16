@@ -1,8 +1,9 @@
 [profile.default]
-src = "."
+src = "contracts/duoLaunch"
 out = "out"
 libs = ["lib", "node_modules"]
 test = "testsol"
+solc = "0.8.24"
 via_ir = true
 optimizer = true
 ffi = false

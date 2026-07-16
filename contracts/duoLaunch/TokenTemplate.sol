@@ -2,13 +2,10 @@
 pragma solidity ^0.8.24;
 
 /// @title TokenTemplate - pump.fun style ERC20 token on NeoX
-/// @notice Deployed by the Pump main contract, fixed supply of 1B, non-upgradeable, non-mintable
-/// @dev Github repo : https://github.com/DuoFinance/xDuo.git
+/// @notice Deployed by the DuoLaunch main contract, fixed supply of 1B, non-upgradeable, non-mintable
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract PumpToken is ERC20, Ownable {
+contract TokenTemplate is ERC20 {
     uint8 private immutable _decimals;
 
     constructor(
@@ -17,9 +14,8 @@ contract PumpToken is ERC20, Ownable {
         uint8 decimals_,
         uint256 totalSupply_,
         address owner_
-    ) ERC20(name_, symbol_) Ownable(owner_) {
+    ) ERC20(name_, symbol_) {
         _decimals = decimals_;
-        // Mint all supply to Pump main contract for distribution to buyers
         _mint(owner_, totalSupply_);
     }
 

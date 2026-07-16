@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../contracts/pump/Pump.sol";
-import "../contracts/pump/TokenTemplate.sol";
-import "../contracts/pump/Constants.sol";
-import "../contracts/pump/CurveMath.sol";
+import "../contracts/duoLaunch/DuoLaunch.sol";
+import "../contracts/duoLaunch/TokenTemplate.sol";
+import "../contracts/duoLaunch/Constants.sol";
+import "../contracts/duoLaunch/CurveMath.sol";
 
 // ═══════════════════════════════════════════════════════════════
 //  0.8.x V2 Interfaces — no V2 .sol source imported
@@ -91,11 +91,11 @@ contract UniswapV2Factory {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  INTEGRATION TEST — fork NeoX mainnet, test Pump graduation
+//  INTEGRATION TEST — fork NeoX mainnet, test DuoLaunch graduation
 // ═══════════════════════════════════════════════════════════════
 
-contract PumpGraduationTest is Test {
-    Pump public pump;
+contract DuoLaunchGraduationTest is Test {
+    DuoLaunch public pump;
     address public constant WGAS = 0xdE41591ED1f8ED1484aC2CD8ca0876428de60EfF;
     UniswapV2Factory public factory;
 
@@ -107,7 +107,7 @@ contract PumpGraduationTest is Test {
     uint256 constant SMALL_TARGET = 1 ether;
 
     address public tokenAddr;
-    PumpToken public token;
+    TokenTemplate public token;
 
     struct SaleData {
         address creator; uint256 totalSupply; uint256 tokensSold; uint256 gasRaised;
@@ -124,8 +124,8 @@ contract PumpGraduationTest is Test {
         // WGAS is already deployed on NeoX mainnet at the constant address
         factory = new UniswapV2Factory();
 
-        // Deploy Pump using the real WGAS address
-        pump = new Pump(address(factory), WGAS);
+        // Deploy DuoLaunch using the real WGAS address
+        pump = new DuoLaunch(address(factory), WGAS);
 
         vm.deal(alice, 10_000 ether);
         vm.deal(bob,   10_000 ether);
@@ -241,7 +241,7 @@ contract PumpGraduationTest is Test {
     function test_Graduation_PreExistingPair() public {
         vm.prank(alice);
         tokenAddr = pump.createSale("PrePair", "PRE", P, SMALL_TARGET);
-        token = PumpToken(tokenAddr);
+        token = TokenTemplate(tokenAddr);
 
         // Pre-create the pair and add minimal liquidity
         factory.createPair(tokenAddr, WGAS);
@@ -281,7 +281,7 @@ contract PumpGraduationTest is Test {
         SaleData memory s = _sale();
         assertTrue(s.graduated, "should graduate");
 
-        // Compute Pump closing price from final state
+        // Compute DuoLaunch closing price from final state
         uint256 closingGasReserve = s.virtualGas + s.gasRaised;
         uint256 closingTokenReserve = s.virtualToken - s.tokensSold;
         uint256 pumpClosingPrice = closingGasReserve * 1e18 / closingTokenReserve;
@@ -295,7 +295,7 @@ contract PumpGraduationTest is Test {
         (uint256 uniToken, uint256 uniGas) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
         uint256 uniPrice = uniGas * 1e18 / uniToken;
 
-        // Pump closing price should equal Uniswap opening price
+        // DuoLaunch closing price should equal Uniswap opening price
         // (all remaining reserves + raised gas are transferred to the pair)
         uint256 diff = pumpClosingPrice > uniPrice ? pumpClosingPrice - uniPrice : uniPrice - pumpClosingPrice;
         assertTrue(diff * 1_000_000 < pumpClosingPrice + uniPrice, "price discontinuity across graduation");
@@ -337,7 +337,7 @@ contract PumpGraduationTest is Test {
             "CBGrad", "CBG", P, SMALL_TARGET, 0
         );
         tokenAddr = t;
-        token = PumpToken(tokenAddr);
+        token = TokenTemplate(tokenAddr);
 
         SaleData memory s = _sale();
         assertTrue(s.graduated, "createAndBuy should graduate if value >= target");
@@ -354,7 +354,7 @@ contract PumpGraduationTest is Test {
 
         vm.prank(alice);
         tokenAddr = pump.createSale("Fuzz", "FUZ", P, TARGET);
-        token = PumpToken(tokenAddr);
+        token = TokenTemplate(tokenAddr);
 
         // Keep buying until graduation
         for (uint256 i = 0; i < 20; i++) {

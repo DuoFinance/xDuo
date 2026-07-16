@@ -2,17 +2,17 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../contracts/pump/Pump.sol";
-import "../contracts/pump/Constants.sol";
-import "../contracts/pump/CurveMath.sol";
-import "../contracts/pump/TokenTemplate.sol";
+import "../contracts/duoLaunch/DuoLaunch.sol";
+import "../contracts/duoLaunch/Constants.sol";
+import "../contracts/duoLaunch/CurveMath.sol";
+import "../contracts/duoLaunch/TokenTemplate.sol";
 
 // ─── Minimal ERC20 interface for MockPair ─────────────────────
 interface IERC20Simple {
     function balanceOf(address) external view returns (uint256);
 }
 
-// ─── Mock WETH (minimal, only what Pump needs) ───────────────
+// ─── Mock WETH (minimal, only what DuoLaunch needs) ───────────────
 contract MockWETH {
     mapping(address => uint256) public balanceOf;
     function deposit() external payable { balanceOf[msg.sender] += msg.value; }
@@ -96,12 +96,45 @@ contract CurveMathCaller {
     }
 }
 
+// ─── Contract that attempts reentrancy via sell() ────────────
+contract ReentrancyAttacker {
+    DuoLaunch public pump;
+    TokenTemplate public token;
+    bool public attackAttempted;
+    bool public attackReverted;
+
+    constructor(DuoLaunch _pump, address _token) {
+        pump = _pump;
+        token = TokenTemplate(_token);
+    }
+
+    function attack() external payable {
+        pump.buy{value: msg.value}(address(token), 0);
+        uint256 bal = token.balanceOf(address(this));
+        token.approve(address(pump), type(uint256).max);
+        pump.sell(address(token), bal / 2, 0);
+    }
+
+    receive() external payable {
+        attackAttempted = true;
+        uint256 remaining = token.balanceOf(address(this));
+        if (remaining > 0) {
+            token.approve(address(pump), remaining);
+            try pump.sell(address(token), remaining, 0) {
+                // Reentrancy should have been blocked
+            } catch {
+                attackReverted = true;
+            }
+        }
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  INVARIANT TESTS FOR PUMP CONTRACT
 // ═══════════════════════════════════════════════════════════════
 
-contract PumpInvariants is Test {
-    Pump public pump;
+contract DuoLaunchInvariants is Test {
+    DuoLaunch public pump;
     MockWETH public weth;
     MockUniswapV2Factory public factory;
     MockUniswapV2Pair public uniPair;
@@ -113,7 +146,7 @@ contract PumpInvariants is Test {
     uint256 constant TARGET = 1000 ether;
 
     address public tokenAddr;
-    PumpToken public token;
+    TokenTemplate public token;
 
     struct SaleData {
         address creator;
@@ -132,7 +165,7 @@ contract PumpInvariants is Test {
     function setUp() public {
         weth = new MockWETH();
         factory = new MockUniswapV2Factory();
-        pump = new Pump(address(factory), address(weth));
+        pump = new DuoLaunch(address(factory), address(weth));
 
         vm.deal(alice, 100_000 ether);
         vm.deal(bob,   100_000 ether);
@@ -140,7 +173,7 @@ contract PumpInvariants is Test {
 
         vm.prank(alice);
         tokenAddr = pump.createSale("TestToken", "TST", P, TARGET);
-        token = PumpToken(tokenAddr);
+        token = TokenTemplate(tokenAddr);
     }
 
     // ─── Helpers ──────────────────────────────────────────────
@@ -478,7 +511,7 @@ contract PumpInvariants is Test {
         vm.prank(bob);
         (address t,) = pump.createAndBuy{value: 10 ether}("CB", "CB", P, TARGET, 0);
 
-        PumpToken tkn = PumpToken(t);
+        TokenTemplate tkn = TokenTemplate(t);
         (,uint256 ts, uint256 tokensSold, uint256 gasRaised,,uint256 vg, uint256 vt,,) = pump.getSale(t);
 
         assertTrue(vg > 0, "vGas zero after createAndBuy");
@@ -595,7 +628,7 @@ contract PumpInvariants is Test {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  NEGATIVE TESTS — each require/revert in Pump.sol
+    //  NEGATIVE TESTS — each require/revert in DuoLaunch.sol
     // ══════════════════════════════════════════════════════════
 
     address constant NONEXISTENT = address(0xDEAD);
@@ -781,6 +814,48 @@ contract PumpInvariants is Test {
         CurveMathCaller c = new CurveMathCaller();
         vm.expectRevert("INSUFFICIENT_LIQUIDITY");
         c.getAmountIn(0, 1 ether, 1 ether);
+    }
+
+    // ─── CurveMath.getAmountOut: uint112 boundary ──────────
+
+    function test_CurveMath_Uint112Boundary() public {
+        uint256 max112 = type(uint112).max;
+
+        // amountIn * reserveOut should not overflow
+        uint256 safeAmount = type(uint256).max / max112;
+        uint256 out = CurveMath.getAmountOut(max112, max112, safeAmount);
+        assertTrue(out > 0, "out should be > 0");
+        assertTrue(out < max112, "out should be < max reserve");
+
+        // one wei past the overflow boundary (via external call to catch panic)
+        uint256 overflowAmount = safeAmount + 1;
+        CurveMathCaller c = new CurveMathCaller();
+        vm.expectRevert();
+        c.getAmountOut(max112, max112, overflowAmount);
+    }
+
+    // ─── createSale graduationBps boundary ────────────────
+
+    function test_CreateSale_GraduationBpsBounds() public {
+        // Valid minimum: 6000
+        address t1 = pump.createSale("Min", "MIN", 6000, 1000 ether);
+        assertTrue(t1 != address(0));
+
+        // Valid maximum: 9900
+        address t2 = pump.createSale("Max", "MAX", 9900, 1000 ether);
+        assertTrue(t2 != address(0));
+
+        // Below MIN_GRADUATION_BPS
+        vm.expectRevert("INVALID_GRADUATION_MIN");
+        pump.createSale("Low", "LOW", 5999, 1000 ether);
+
+        // Above MAX_GRADUATION_BPS
+        vm.expectRevert("INVALID_GRADUATION_MAX");
+        pump.createSale("High", "HIGH", 9901, 1000 ether);
+
+        // P=5000 triggers INVALID_GRADUATION_MIN check first (MIN=6000)
+        vm.expectRevert("INVALID_GRADUATION_MIN");
+        pump.createSale("Half", "HALF", 5000, 1000 ether);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1001,7 +1076,7 @@ contract PumpInvariants is Test {
         vm.deal(bob, 100 ether);
         vm.prank(bob);
         (address t,) = pump.createAndBuy{value: 10 ether}("CABSell", "CBS", P, 1000 ether, 0);
-        PumpToken tk = PumpToken(t);
+        TokenTemplate tk = TokenTemplate(t);
 
         // Verify state after createAndBuy
         (,,,,, uint256 vg, uint256 vt,,) = pump.getSale(t);
@@ -1033,7 +1108,7 @@ contract PumpInvariants is Test {
 
         vm.prank(alice);
         address t = pump.createSale("FuzzCont", "FZC", 8000, 10_000 ether);
-        PumpToken tk = PumpToken(t);
+        TokenTemplate tk = TokenTemplate(t);
 
         uint256 k0;
         {
@@ -1073,6 +1148,18 @@ contract PumpInvariants is Test {
             uint256 k1 = (vg2 + s.gasRaised) * (vt2 - s.tokensSold);
             assertApproxEqRel(k1, k0, 1e14, "k invariant in continuous trades");
         }
+    }
+
+    // ─── Reentrancy: sell() ETH callback must be gated by nonReentrant ───
+
+    function test_Sell_Reentrancy_Blocked() public {
+        ReentrancyAttacker attacker = new ReentrancyAttacker(pump, tokenAddr);
+        vm.deal(address(attacker), 100 ether);
+
+        attacker.attack{value: 100 ether}();
+
+        assertTrue(attacker.attackAttempted(), "reentrancy should be attempted");
+        assertTrue(attacker.attackReverted(), "reentrancy should be blocked by nonReentrant");
     }
 }
 
