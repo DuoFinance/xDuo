@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title DuoLaunch - Fair Launch contract
+/// @title DuoLaunch - Fair Launch contract on NeoX
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
 /// @dev Github repo : https://github.com/DuoFinance/xDuo.git
 ///   - Internal bonding curve two-way trading
@@ -32,7 +32,7 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 virtualToken;    // vToken
         uint256 graduationBps;   // P（bps）
         bool    graduated;       // Whether graduated
-        address pair;            // Uniswap pair after graduation
+        address pair;            // LP burn address (address(0)) after graduation
     }
 
     /* ============ State ============ */
@@ -271,13 +271,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         emit SaleGraduated(token, pair, tokensForLP, GASForLP);
     }
 
-    /* ============ Queries ============ */
-    /// @inheritdoc IDuo
-    function getPair(address token) external view returns (address) {
-        SaleInfo storage s = sales[token];
-        require(s.creator != address(0), "SALE_NOT_EXIST");
-        return s.pair;
-    }
 
     /// @inheritdoc IDuo
     function getSale(address token) external view returns (
@@ -289,12 +282,13 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 virtualGAS,
         uint256 virtualToken,
         uint256 graduationBps,
-        bool    graduated
+        bool    graduated,
+        address pair
     ) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
         return (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
-                s.targetRaise, s.virtualGAS, s.virtualToken, s.graduationBps, s.graduated);
+                s.targetRaise, s.virtualGAS, s.virtualToken, s.graduationBps, s.graduated, s.pair);
     }
 
     /// @inheritdoc IDuo

@@ -113,6 +113,7 @@ contract DuoLaunchGraduationTest is Test {
         address creator; uint256 totalSupply; uint256 tokensSold; uint256 GASRaised;
         uint256 targetRaise; uint256 virtualGAS; uint256 virtualToken;
         uint256 graduationBps; bool graduated;
+        address pair;
     }
 
     function setUp() public {
@@ -135,7 +136,7 @@ contract DuoLaunchGraduationTest is Test {
     function _sale() internal view returns (SaleData memory s) {
         (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
          s.targetRaise, s.virtualGAS, s.virtualToken,
-         s.graduationBps, s.graduated) = pump.getSale(tokenAddr);
+         s.graduationBps, s.graduated, s.pair) = pump.getSale(tokenAddr);
     }
 
     function _buy(address from, uint256 amount) internal {

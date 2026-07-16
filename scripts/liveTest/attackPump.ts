@@ -18,7 +18,7 @@ const ABI = [
   "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
-  "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
+  "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool,address)",
 ];
 
 let saleIface: Interface;

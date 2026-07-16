@@ -17,8 +17,6 @@ interface IDuo {
     function sell(address token, uint256 tokensIn, uint256 minGASOut) external returns (uint256 GASOut);
 
     /* ============ Queries ============ */
-    function getPair(address token) external view returns (address);
-
     function getSale(address token) external view returns (
         address creator,
         uint256 totalSupply,
@@ -28,7 +26,8 @@ interface IDuo {
         uint256 virtualGAS,
         uint256 virtualToken,
         uint256 graduationBps,
-        bool    graduated
+        bool    graduated,
+        address pair
     );
     function getCurrentPrice(address token) external view returns (uint256);
     function getTokensForGAS(address token, uint256 GASAmount) external view returns (uint256);
