@@ -152,9 +152,9 @@ contract DuoLaunchInvariants is Test {
         address creator;
         uint256 totalSupply;
         uint256 tokensSold;
-        uint256 gasRaised;
+        uint256 GASRaised;
         uint256 targetRaise;
-        uint256 virtualGas;
+        uint256 virtualGAS;
         uint256 virtualToken;
         uint256 graduationBps;
         bool graduated;
@@ -179,13 +179,13 @@ contract DuoLaunchInvariants is Test {
     // ─── Helpers ──────────────────────────────────────────────
 
     function _sale() internal view returns (SaleData memory s) {
-        (s.creator, s.totalSupply, s.tokensSold, s.gasRaised,
-         s.targetRaise, s.virtualGas, s.virtualToken,
+        (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
+         s.targetRaise, s.virtualGAS, s.virtualToken,
          s.graduationBps, s.graduated) = pump.getSale(tokenAddr);
     }
 
     function _k(SaleData memory s) internal pure returns (uint256) {
-        return (s.virtualGas + s.gasRaised) * (s.virtualToken - s.tokensSold);
+        return (s.virtualGAS + s.GASRaised) * (s.virtualToken - s.tokensSold);
     }
 
     function _maxTokens(SaleData memory s) internal pure returns (uint256) {
@@ -205,7 +205,7 @@ contract DuoLaunchInvariants is Test {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  INVARIANT 1:  Constant product k = (vGas+gr)*(vToken-ts)
+    //  INVARIANT 1:  Constant product k = (vGAS+GASR)*(vToken-ts)
     //  should remain approximately constant after trades.
     // ══════════════════════════════════════════════════════════
 
@@ -253,13 +253,13 @@ contract DuoLaunchInvariants is Test {
         }
     }
 
-    function testFuzz_K_Unchanged(uint256 gasAmount) public {
-        vm.assume(gasAmount > 0.001 ether && gasAmount <= 10 ether);
+    function testFuzz_K_Unchanged(uint256 GASAmount) public {
+        vm.assume(GASAmount > 0.001 ether && GASAmount <= 10 ether);
 
         SaleData memory s0 = _sale();
         uint256 k0 = _k(s0);
 
-        _buy(alice, gasAmount);
+        _buy(alice, GASAmount);
 
         SaleData memory s1 = _sale();
         if (s1.graduated) return;
@@ -289,10 +289,10 @@ contract DuoLaunchInvariants is Test {
         assertEq(token.balanceOf(address(pump)), s.totalSupply - s.tokensSold);
     }
 
-    function testFuzz_TokenConservation(uint256 gasAmount) public {
-        vm.assume(gasAmount > 0.001 ether && gasAmount <= 10 ether);
+    function testFuzz_TokenConservation(uint256 GASAmount) public {
+        vm.assume(GASAmount > 0.001 ether && GASAmount <= 10 ether);
 
-        _buy(alice, gasAmount);
+        _buy(alice, GASAmount);
 
         SaleData memory s = _sale();
         if (s.graduated) return;
@@ -331,7 +331,7 @@ contract DuoLaunchInvariants is Test {
         for (uint256 i = 0; i < 10; i++) {
             SaleData memory s = _sale();
             if (s.graduated) break;
-            if (s.gasRaised >= s.targetRaise) break;
+            if (s.GASRaised >= s.targetRaise) break;
             uint256 cap = _maxTokens(s);
             _buy(alice, 5 ether);
             s = _sale();
@@ -388,16 +388,16 @@ contract DuoLaunchInvariants is Test {
 
     // ══════════════════════════════════════════════════════════
     //  INVARIANT 6:  Quote consistency
-    //  getTokensForGas / getGasForTokens match actual trade results
+    //  getTokensForGAS / getGASForTokens match actual trade results
     // ══════════════════════════════════════════════════════════
 
     function test_QuoteConsistency_Buy() public {
-        uint256 gasIn = 5 ether;
-        uint256 quoted = pump.getTokensForGas(tokenAddr, gasIn);
+        uint256 GASIn = 5 ether;
+        uint256 quoted = pump.getTokensForGAS(tokenAddr, GASIn);
 
         vm.prank(alice);
         vm.recordLogs();
-        pump.buy{value: gasIn}(tokenAddr, 0);
+        pump.buy{value: GASIn}(tokenAddr, 0);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         for (uint256 i = 0; i < logs.length; i++) {
@@ -412,7 +412,7 @@ contract DuoLaunchInvariants is Test {
     function test_QuoteConsistency_Sell() public {
         _buy(alice, 10 ether);
         uint256 sellAmount = token.balanceOf(alice) / 4;
-        uint256 quoted = pump.getGasForTokens(tokenAddr, sellAmount);
+        uint256 quoted = pump.getGASForTokens(tokenAddr, sellAmount);
 
         vm.prank(alice);
         token.approve(address(pump), sellAmount);
@@ -424,7 +424,7 @@ contract DuoLaunchInvariants is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == keccak256("TokensSold(address,address,uint256,uint256)")) {
                 (, uint256 actual) = abi.decode(logs[i].data, (uint256, uint256));
-                assertEq(actual, quoted, "quote != actual gasOut");
+                assertEq(actual, quoted, "quote != actual GASOut");
                 break;
             }
         }
@@ -432,7 +432,7 @@ contract DuoLaunchInvariants is Test {
 
     // ══════════════════════════════════════════════════════════
     //  INVARIANT 7:  Refund on overshoot
-    //  Buying beyond graduation cap should refund excess gas
+    //  Buying beyond graduation cap should refund excess GAS
     // ══════════════════════════════════════════════════════════
 
     function test_RefundOnOvershoot() public {
@@ -440,22 +440,22 @@ contract DuoLaunchInvariants is Test {
         uint256 maxTokens = _maxTokens(s);
         uint256 remainingToGrad = maxTokens - s.tokensSold;
 
-        uint256 gasNeeded = CurveMath.getAmountIn(
-            s.virtualGas + s.gasRaised,
+        uint256 GASNeeded = CurveMath.getAmountIn(
+            s.virtualGAS + s.GASRaised,
             s.virtualToken - s.tokensSold,
             remainingToGrad
         );
 
         uint256 excess = 50 ether;
         uint256 balBefore = alice.balance;
-        _buy(alice, gasNeeded + excess);
+        _buy(alice, GASNeeded + excess);
 
         SaleData memory s1 = _sale();
         assertTrue(s1.tokensSold <= maxTokens, "cap exceeded after overshoot buy");
 
         uint256 netCost = balBefore - alice.balance;
-        assertTrue(netCost <= gasNeeded + 1, "net cost exceeded gas needed");
-        assertTrue(netCost >= gasNeeded - 1, "net cost less than gas needed (refund error)");
+        assertTrue(netCost <= GASNeeded + 1, "net cost exceeded GAS needed");
+        assertTrue(netCost >= GASNeeded - 1, "net cost less than GAS needed (refund error)");
     }
 
     // ══════════════════════════════════════════════════════════
@@ -464,18 +464,18 @@ contract DuoLaunchInvariants is Test {
 
     function test_VirtualReservesAlwaysPositive() public {
         SaleData memory s = _sale();
-        assertTrue(s.virtualGas > 0, "vGas zero");
+        assertTrue(s.virtualGAS > 0, "vGAS zero");
         assertTrue(s.virtualToken > 0, "vToken zero");
 
         _buy(alice, 1 ether);
         s = _sale();
-        assertTrue(s.virtualGas + s.gasRaised > 0, "gasReserve zero after buy");
+        assertTrue(s.virtualGAS + s.GASRaised > 0, "GASReserve zero after buy");
         assertTrue(s.virtualToken - s.tokensSold > 0, "tokenReserve zero after buy");
     }
 
     // ══════════════════════════════════════════════════════════
     //  INVARIANT 9:  Graduation triggers correctly
-    //  gasRaised >= targetRaise OR tokensSold >= maxTokens => graduated
+    //  GASRaised >= targetRaise OR tokensSold >= maxTokens => graduated
     // ══════════════════════════════════════════════════════════
 
     function test_GraduationTriggersAtTarget() public {
@@ -496,10 +496,10 @@ contract DuoLaunchInvariants is Test {
         assertTrue(pairAddr != address(0), "pair not created");
 
         uint256 tokensForLP = s.totalSupply - s.tokensSold;
-        uint256 gasForLP = s.gasRaised;
+        uint256 GASForLP = s.GASRaised;
 
         assertEq(token.balanceOf(pairAddr), tokensForLP, "pair missing tokens");
-        assertEq(weth.balanceOf(pairAddr), gasForLP, "pair missing gas");
+        assertEq(weth.balanceOf(pairAddr), GASForLP, "pair missing GAS");
     }
 
     // ══════════════════════════════════════════════════════════
@@ -512,15 +512,15 @@ contract DuoLaunchInvariants is Test {
         (address t,) = pump.createAndBuy{value: 10 ether}("CB", "CB", P, TARGET, 0);
 
         TokenTemplate tkn = TokenTemplate(t);
-        (,uint256 ts, uint256 tokensSold, uint256 gasRaised,,uint256 vg, uint256 vt,,) = pump.getSale(t);
+        (,uint256 ts, uint256 tokensSold, uint256 GASRaised,,uint256 vg, uint256 vt,,) = pump.getSale(t);
 
-        assertTrue(vg > 0, "vGas zero after createAndBuy");
+        assertTrue(vg > 0, "vGAS zero after createAndBuy");
         assertTrue(vt > 0, "vToken zero after createAndBuy");
         assertEq(tkn.balanceOf(address(pump)), ts - tokensSold);
         assertTrue(tkn.balanceOf(bob) > 0, "buyer got no tokens");
 
         // k invariant
-        uint256 k = (vg + gasRaised) * (vt - tokensSold);
+        uint256 k = (vg + GASRaised) * (vt - tokensSold);
         uint256 k0 = vg * vt;
         uint256 diff = k > k0 ? k - k0 : k0 - k;
         assertTrue(diff * 1_000_000_000_000_000_000 < k + k0, "k drifted too much");
@@ -543,7 +543,7 @@ contract DuoLaunchInvariants is Test {
         pump.createSale("X", "X", 8000, 0);
     }
 
-    function test_ZeroGasBuy_Reverts() public {
+    function test_ZeroGASBuy_Reverts() public {
         vm.expectRevert("ZERO_GAS");
         pump.buy{value: 0}(tokenAddr, 0);
     }
@@ -554,7 +554,7 @@ contract DuoLaunchInvariants is Test {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  INVARIANT 12:  gasRaised and tokensSold monotonicity
+    //  INVARIANT 12:  GASRaised and tokensSold monotonicity
     // ══════════════════════════════════════════════════════════
 
     function test_Monotonic_BuyIncreases() public {
@@ -562,7 +562,7 @@ contract DuoLaunchInvariants is Test {
         _buy(alice, 1 ether);
         SaleData memory s1 = _sale();
         if (!s1.graduated) {
-            assertTrue(s1.gasRaised > s0.gasRaised, "gasRaised not increased");
+            assertTrue(s1.GASRaised > s0.GASRaised, "GASRaised not increased");
             assertTrue(s1.tokensSold > s0.tokensSold, "tokensSold not increased");
         }
     }
@@ -575,7 +575,7 @@ contract DuoLaunchInvariants is Test {
         _approveAndSell(alice, bal / 2);
         SaleData memory s1 = _sale();
         assertTrue(s1.tokensSold < s0.tokensSold, "tokensSold did not decrease on sell");
-        assertTrue(s1.gasRaised < s0.gasRaised, "gasRaised did not decrease on sell");
+        assertTrue(s1.GASRaised < s0.GASRaised, "GASRaised did not decrease on sell");
     }
 
     // ══════════════════════════════════════════════════════════
@@ -584,7 +584,7 @@ contract DuoLaunchInvariants is Test {
 
     function test_Slippage_RevertsOnHighMinOut() public {
         _buy(alice, 1 ether);
-        uint256 quoted = pump.getTokensForGas(tokenAddr, 1 ether);
+        uint256 quoted = pump.getTokensForGAS(tokenAddr, 1 ether);
         vm.expectRevert("SLIPPAGE");
         pump.buy{value: 1 ether}(tokenAddr, quoted + 1);
     }
@@ -596,7 +596,7 @@ contract DuoLaunchInvariants is Test {
 
     function test_CurveMathInverse() public {
         SaleData memory s = _sale();
-        uint256 R = s.virtualGas;
+        uint256 R = s.virtualGAS;
         uint256 T = s.virtualToken;
         uint256 amountIn = 10 ether;
 
@@ -655,19 +655,19 @@ contract DuoLaunchInvariants is Test {
         pump.getCurrentPrice(NONEXISTENT);
     }
 
-    function test_SaleNotExist_GetTokensForGas() public {
+    function test_SaleNotExist_GetTokensForGAS() public {
         vm.expectRevert("SALE_NOT_EXIST");
-        pump.getTokensForGas(NONEXISTENT, 1 ether);
+        pump.getTokensForGAS(NONEXISTENT, 1 ether);
     }
 
-    function test_SaleNotExist_GetGasForTokens() public {
+    function test_SaleNotExist_GetGASForTokens() public {
         vm.expectRevert("SALE_NOT_EXIST");
-        pump.getGasForTokens(NONEXISTENT, 1 ether);
+        pump.getGASForTokens(NONEXISTENT, 1 ether);
     }
 
     // ─── createAndBuy: ZERO_GAS ──────────────────────────────
 
-    function test_CreateAndBuy_ZeroGas_Reverts() public {
+    function test_CreateAndBuy_ZeroGAS_Reverts() public {
         vm.expectRevert("ZERO_GAS");
         pump.createAndBuy{value: 0}("X", "X", P, TARGET, 0);
     }
@@ -685,24 +685,24 @@ contract DuoLaunchInvariants is Test {
         pump.getCurrentPrice(tokenAddr);
     }
 
-    function test_SaleGraduated_GetTokensForGas() public {
+    function test_SaleGraduated_GetTokensForGAS() public {
         _graduateSetup();
         vm.expectRevert("SALE_GRADUATED");
-        pump.getTokensForGas(tokenAddr, 1 ether);
+        pump.getTokensForGAS(tokenAddr, 1 ether);
     }
 
-    function test_SaleGraduated_GetGasForTokens() public {
+    function test_SaleGraduated_GetGASForTokens() public {
         _graduateSetup();
         vm.expectRevert("SALE_GRADUATED");
-        pump.getGasForTokens(tokenAddr, 1 ether);
+        pump.getGASForTokens(tokenAddr, 1 ether);
     }
 
-    // ─── sell: SLIPPAGE (minGasOut too high) ─────────────────
+    // ─── sell: SLIPPAGE (minGASOut too high) ─────────────────
 
     function test_Sell_Slippage_Reverts() public {
         _buy(alice, 10 ether);
         uint256 bal = token.balanceOf(alice);
-        uint256 quoted = pump.getGasForTokens(tokenAddr, bal);
+        uint256 quoted = pump.getGASForTokens(tokenAddr, bal);
         vm.prank(alice);
         token.approve(address(pump), bal);
         vm.expectRevert("SLIPPAGE");
@@ -710,15 +710,15 @@ contract DuoLaunchInvariants is Test {
         pump.sell(tokenAddr, bal, quoted + 1);
     }
 
-    // ─── sell: INSUFFICIENT_GAS (gasOut > gasRaised) ────────
+    // ─── sell: INSUFFICIENT_GAS (GASOut > GASRaised) ────────
     //  UNREACHABLE via normal paths: CP-AMM rounding means
-    //  selling tokens always returns <= the gas used to buy
-    //  them, and gasRaised tracks all gas ever contributed.
+    //  selling tokens always returns <= the GAS used to buy
+    //  them, and GASRaised tracks all GAS ever contributed.
     //  Kept as documentation — this is a defense-in-depth check.
 
     // ─── sell: GAS_TRANSFER_FAILED (recipient rejects ETH) ───
 
-    function test_Sell_GasTransferFailed_Reverts() public {
+    function test_Sell_GASTransferFailed_Reverts() public {
         EthRejecter noEth = new EthRejecter();
         vm.deal(address(noEth), 10 ether);
 
@@ -745,7 +745,7 @@ contract DuoLaunchInvariants is Test {
         uint256 maxT = _maxTokens(s);
         uint256 remaining = maxT - s.tokensSold;
         uint256 needed = CurveMath.getAmountIn(
-            s.virtualGas + s.gasRaised,
+            s.virtualGAS + s.GASRaised,
             s.virtualToken - s.tokensSold,
             remaining
         );
@@ -769,9 +769,9 @@ contract DuoLaunchInvariants is Test {
     //  Test the "other half" of conditional branches
     // ══════════════════════════════════════════════════════════
 
-    // ─── sell: gasOut == 0 after tiny sale ──────────────────
+    // ─── sell: GASOut == 0 after tiny sale ──────────────────
 
-    function test_Sell_ZeroGasOut_Reverts() public {
+    function test_Sell_ZeroGASOut_Reverts() public {
         _buy(alice, 10 ether);
         uint256 dust = 1;
         uint256 bal = token.balanceOf(alice);
@@ -869,27 +869,27 @@ contract DuoLaunchInvariants is Test {
         _buy(alice, 10 ether);
         SaleData memory s1 = _sale();
         uint256 aliceTokens = token.balanceOf(alice);
-        uint256 aliceGasBefore = alice.balance;
+        uint256 aliceGASBefore = alice.balance;
 
         // Bob buys later (higher price → Alice's tokens appreciate)
         _buy(bob, 100 ether);
         SaleData memory s2 = _sale();
-        assertTrue(s2.gasRaised > s1.gasRaised, "gasRaised should increase after Bob's buy");
+        assertTrue(s2.GASRaised > s1.GASRaised, "GASRaised should increase after Bob's buy");
         assertTrue(s2.tokensSold > s1.tokensSold, "tokensSold should increase after Bob's buy");
 
         // Alice sells her tokens at the higher price
-        uint256 gasOut;
+        uint256 GASOut;
         {
             vm.prank(alice);
             token.approve(address(pump), aliceTokens);
             vm.prank(alice);
-            gasOut = pump.sell(tokenAddr, aliceTokens, 0);
+            GASOut = pump.sell(tokenAddr, aliceTokens, 0);
         }
-        uint256 aliceGasAfter = alice.balance;
-        uint256 aliceProfit = aliceGasAfter - aliceGasBefore;
+        uint256 aliceGASAfter = alice.balance;
+        uint256 aliceProfit = aliceGASAfter - aliceGASBefore;
 
         // Alice should get back more than 10 ETH due to price appreciation
-        assertTrue(gasOut > 10 ether, "Alice should profit from Bob's buy");
+        assertTrue(GASOut > 10 ether, "Alice should profit from Bob's buy");
         assertTrue(aliceProfit > 0, "net profit positive");
         assertTrue(!s2.graduated, "should not graduate from these buys");
     }
@@ -907,14 +907,14 @@ contract DuoLaunchInvariants is Test {
         token.transfer(bob, half);
 
         // Bob sells his tokens
-        uint256 bobGasBefore = bob.balance;
+        uint256 bobGASBefore = bob.balance;
         vm.prank(bob);
         token.approve(address(pump), half);
         vm.prank(bob);
-        uint256 gasOut = pump.sell(tokenAddr, half, 0);
+        uint256 GASOut = pump.sell(tokenAddr, half, 0);
 
-        assertTrue(gasOut > 0, "Bob should get gas for tokens");
-        assertTrue(bob.balance > bobGasBefore, "Bob's gas increased");
+        assertTrue(GASOut > 0, "Bob should get GAS for tokens");
+        assertTrue(bob.balance > bobGASBefore, "Bob's GAS increased");
 
         // Alice still holds the other half (±1 for odd-number rounding)
         assertApproxEqAbs(token.balanceOf(alice), half, 1, "Alice still has half");
@@ -945,7 +945,7 @@ contract DuoLaunchInvariants is Test {
 
         SaleData memory s1 = _sale();
         assertEq(s1.tokensSold, 0, "all tokens returned");
-        assertLe(s1.gasRaised, 10, "gas should return to near zero");
+        assertLe(s1.GASRaised, 10, "GAS should return to near zero");
         uint256 k1 = _k(s1);
         assertApproxEqRel(k1, k0, 1e15, "k invariant after round trip");
     }
@@ -988,12 +988,12 @@ contract DuoLaunchInvariants is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == keccak256("SaleGraduated(address,address,uint256,uint256)")) {
                 address token_ = address(uint160(uint256(logs[i].topics[1])));
-                (address pair, uint256 tokensForLP, uint256 gasForLP) = abi.decode(logs[i].data, (address, uint256, uint256));
+                (address pair, uint256 tokensForLP, uint256 GASForLP) = abi.decode(logs[i].data, (address, uint256, uint256));
                 assertEq(token_, tokenAddr, "event token");
                 assertTrue(pair != address(0), "event pair non-zero");
                 SaleData memory s = _sale();
                 assertEq(tokensForLP, s.totalSupply - s.tokensSold, "event tokensForLP");
-                assertEq(gasForLP, s.gasRaised, "event gasForLP");
+                assertEq(GASForLP, s.GASRaised, "event GASForLP");
                 found = true;
                 break;
             }
@@ -1013,10 +1013,10 @@ contract DuoLaunchInvariants is Test {
             if (logs[i].topics[0] == keccak256("TokensPurchased(address,address,uint256,uint256)")) {
                 address buyer = address(uint160(uint256(logs[i].topics[1])));
                 address token_ = address(uint160(uint256(logs[i].topics[2])));
-                (uint256 gasIn, uint256 tokensOut) = abi.decode(logs[i].data, (uint256, uint256));
+                (uint256 GASIn, uint256 tokensOut) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(buyer, alice, "event buyer");
                 assertEq(token_, tokenAddr, "event token");
-                assertEq(gasIn, 5 ether, "event gasIn");
+                assertEq(GASIn, 5 ether, "event GASIn");
                 assertTrue(tokensOut > 0, "event tokensOut > 0");
                 found = true;
                 break;
@@ -1043,11 +1043,11 @@ contract DuoLaunchInvariants is Test {
             if (logs[i].topics[0] == keccak256("TokensSold(address,address,uint256,uint256)")) {
                 address seller = address(uint160(uint256(logs[i].topics[1])));
                 address token_ = address(uint160(uint256(logs[i].topics[2])));
-                (uint256 tokensIn, uint256 gasOut) = abi.decode(logs[i].data, (uint256, uint256));
+                (uint256 tokensIn, uint256 GASOut) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(seller, alice, "event seller");
                 assertEq(token_, tokenAddr, "event token");
                 assertEq(tokensIn, sellAmount, "event tokensIn");
-                assertTrue(gasOut > 0, "event gasOut > 0");
+                assertTrue(GASOut > 0, "event GASOut > 0");
                 found = true;
                 break;
             }
@@ -1080,7 +1080,7 @@ contract DuoLaunchInvariants is Test {
 
         // Verify state after createAndBuy
         (,,,,, uint256 vg, uint256 vt,,) = pump.getSale(t);
-        assertTrue(vg > 0, "vGas should be set");
+        assertTrue(vg > 0, "vGAS should be set");
         assertTrue(vt > 0, "vToken should be set");
         assertTrue(tk.balanceOf(bob) > 0, "buyer should have tokens");
 
@@ -1089,8 +1089,8 @@ contract DuoLaunchInvariants is Test {
         vm.prank(bob);
         tk.approve(address(pump), sellAmount);
         vm.prank(bob);
-        uint256 gasOut = pump.sell(t, sellAmount, 0);
-        assertTrue(gasOut > 0, "sell should return gas");
+        uint256 GASOut = pump.sell(t, sellAmount, 0);
+        assertTrue(GASOut > 0, "sell should return GAS");
 
         // Token conservation check
         (,,,,,, uint256 tokensSold,,) = pump.getSale(t);
@@ -1144,8 +1144,8 @@ contract DuoLaunchInvariants is Test {
 
             // k should stay constant (within rounding)
             SaleData memory s;
-            (,, s.tokensSold, s.gasRaised,,,,,) = pump.getSale(t);
-            uint256 k1 = (vg2 + s.gasRaised) * (vt2 - s.tokensSold);
+            (,, s.tokensSold, s.GASRaised,,,,,) = pump.getSale(t);
+            uint256 k1 = (vg2 + s.GASRaised) * (vt2 - s.tokensSold);
             assertApproxEqRel(k1, k0, 1e14, "k invariant in continuous trades");
         }
     }

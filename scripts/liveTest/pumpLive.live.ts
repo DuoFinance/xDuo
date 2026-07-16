@@ -15,14 +15,14 @@ const PUMP_ABI = [
   "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
-  "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 gasRaised, uint256 targetRaise, uint256 virtualGas, uint256 virtualToken, uint256 graduationBps, bool graduated)",
+  "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 GASRaised, uint256 targetRaise, uint256 virtualGAS, uint256 virtualToken, uint256 graduationBps, bool graduated)",
   "function getCurrentPrice(address) view returns (uint256)",
-  "function getTokensForGas(address,uint256) view returns (uint256)",
-  "function getGasForTokens(address,uint256) view returns (uint256)",
+  "function getTokensForGAS(address,uint256) view returns (uint256)",
+  "function getGASForTokens(address,uint256) view returns (uint256)",
   "event SaleCreated(address indexed creator, address indexed token, string name, string symbol)",
-  "event TokensPurchased(address indexed buyer, address indexed token, uint256 gasIn, uint256 tokensOut)",
-  "event TokensSold(address indexed seller, address indexed token, uint256 tokensIn, uint256 gasOut)",
-  "event SaleGraduated(address indexed token, address pair, uint256 tokensForLP, uint256 gasForLP)",
+  "event TokensPurchased(address indexed buyer, address indexed token, uint256 GASIn, uint256 tokensOut)",
+  "event TokensSold(address indexed seller, address indexed token, uint256 tokensIn, uint256 GASOut)",
+  "event SaleGraduated(address indexed token, address pair, uint256 tokensForLP, uint256 GASForLP)",
 ];
 
 let pumpIface: Interface;
@@ -42,7 +42,7 @@ async function main() {
   const network = hre.network.name;
 
   console.log("═══════════════════════════════════════════════════");
-  console.log(`  Pump Live Network Test — ${network}`);
+  console.log("  DuoLaunch Live Network Test — ${network}");
   console.log("═══════════════════════════════════════════════════\n");
 
   const [deployer] = await ethers.getSigners();
@@ -57,12 +57,12 @@ async function main() {
   assert.ok(!isNaN(block) && block >= 0, `Invalid block number: ${block} on ${networkName}`);
   console.log(`   Network: ${networkName}, Block: ${block} ✓\n`);
 
-  // 1 ── Connect to Pump
-  console.log("1. Connecting to Pump...");
+  // 1 ── Connect to DuoLaunch
+  console.log("1. Connecting to DuoLaunch...");
   const code = await ethers.provider.getCode(deployed.pump);
   assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.pump}. Run with --network <network> where the contracts are deployed (e.g. neoxTestnet, legacy)`);
   const pump: any = await ethers.getContractAt(PUMP_ABI, deployed.pump);
-  const pumpArtifact = await hre.artifacts.readArtifact("contracts/pump/Pump.sol:Pump");
+  const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   pumpIface = new ethers.Interface(pumpArtifact.abi);
   assert.strictEqual(
     (await pump.getAddress()).toLowerCase(),
@@ -115,16 +115,16 @@ async function main() {
   console.log("3. Sale info...");
   const s: any = await pump.getSale(tokenAddr);
   console.log(`   tokensSold   : ${ethers.formatEther(s.tokensSold)}`);
-  console.log(`   gasRaised    : ${ethers.formatEther(s.gasRaised)}`);
+  console.log(`   gasRaised    : ${ethers.formatEther(s.GASRaised)}`);
   console.log(`   targetRaise  : ${ethers.formatEther(s.targetRaise)}`);
-  console.log(`   virtualGas   : ${ethers.formatEther(s.virtualGas)}`);
+  console.log(`   virtualGas   : ${ethers.formatEther(s.virtualGAS)}`);
   console.log(`   virtualToken : ${ethers.formatEther(s.virtualToken)}`);
   console.log(`   graduationBps: ${s.graduationBps}`);
   console.log(`   graduated    : ${s.graduated}`);
   assert.strictEqual(s.creator.toLowerCase(), deployer.address.toLowerCase());
   assert.strictEqual(s.graduated, false);
   assert.strictEqual(s.tokensSold, 0n);
-  assert.strictEqual(s.gasRaised, 0n);
+  assert.strictEqual(s.GASRaised, 0n);
   console.log("   ✓\n");
 
   // 4 ── Buy
@@ -151,13 +151,13 @@ async function main() {
   assert.ok(price > 0n);
   console.log(`   getCurrentPrice: ${ethers.formatEther(price)}`);
 
-  const qTokens = await pump.getTokensForGas(tokenAddr, ethers.parseEther("0.0001"));
+  const qTokens = await pump.getTokensForGAS(tokenAddr, ethers.parseEther("0.0001"));
   assert.ok(qTokens > 0n);
   console.log(`   getTokensForGas(0.0001 ETH): ${ethers.formatEther(qTokens)}`);
 
-  const qGas = await pump.getGasForTokens(tokenAddr, tokensOut / 2n);
-  assert.ok(qGas > 0n);
-  console.log(`   getGasForTokens(half): ${ethers.formatEther(qGas)}`);
+  const qGAS = await pump.getGASForTokens(tokenAddr, tokensOut / 2n);
+  assert.ok(qGAS > 0n);
+  console.log(`   getGasForTokens(half): ${ethers.formatEther(qGAS)}`);
   console.log("   ✓\n");
 
   // 6 ── Sell
@@ -170,10 +170,10 @@ async function main() {
     .map((l: any) => { try { return pumpIface.parseLog(l); } catch { return null; } })
     .find((p: any) => p?.name === "TokensSold");
   assert.ok(sellLog);
-  const gasOut: bigint = sellLog!.args.gasOut;
+  const GASOut: bigint = sellLog!.args.GASOut;
   console.log(`   In : ${ethers.formatEther(sellAmt)} tokens`);
-  console.log(`   Out: ${ethers.formatEther(gasOut)} ETH`);
-  assert.ok(gasOut > 0n);
+  console.log(`   Out: ${ethers.formatEther(GASOut)} ETH`);
+  assert.ok(GASOut > 0n);
   console.log("   ✓\n");
 
   // 7 ── Edge cases
@@ -214,8 +214,8 @@ async function main() {
   // 8 ── Graduate
   console.log("8. Graduation...");
   const s2: any = await pump.getSale(tokenAddr);
-  const need: bigint = BigInt(s2.targetRaise) - BigInt(s2.gasRaised);
-  console.log(`   gasRaised: ${ethers.formatEther(s2.gasRaised)} / ${ethers.formatEther(s2.targetRaise)}`);
+  const need: bigint = BigInt(s2.targetRaise) - BigInt(s2.GASRaised);
+  console.log(`   gasRaised: ${ethers.formatEther(s2.GASRaised)} / ${ethers.formatEther(s2.targetRaise)}`);
   console.log(`   Remaining: ${ethers.formatEther(need)} ETH`);
 
   if (need > 0n) {
@@ -292,9 +292,9 @@ async function main() {
     console.log(`   Token: ${cbToken} (${cbNameCheck}/${cbSymbolCheck})`);
     // Sale should have gasRaised > 0 and tokensSold > 0 (atomic buy)
     const cbSale: any = await pump.getSale(cbToken);
-    assert.ok(cbSale.gasRaised > 0n, "gasRaised should be > 0 after createAndBuy");
+    assert.ok(cbSale.GASRaised > 0n, "gasRaised should be > 0 after createAndBuy");
     assert.ok(cbSale.tokensSold > 0n, "tokensSold should be > 0 after createAndBuy");
-    console.log(`   gasRaised: ${ethers.formatEther(cbSale.gasRaised)}`);
+    console.log(`   gasRaised: ${ethers.formatEther(cbSale.GASRaised)}`);
     console.log(`   tokensSold: ${ethers.formatEther(cbSale.tokensSold)}`);
     // Buyer should have received tokens
     const cbBal = await cbTokenContract.balanceOf(deployer.address);

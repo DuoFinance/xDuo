@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 /// @notice CP-AMM (x*y=k) standard amountOut formula
 /// @dev All functions are pure, no chain state reads/writes
 library CurveMath {
-    /* ============ Buy: amountIn(gas) -> amountOut(token) ============ */
+    /* ============ Buy: amountIn(GAS) -> amountOut(token) ============ */
     /// @dev amountOut = reserveOut * amountIn / (reserveIn + amountIn)
     function getAmountOut(
         uint256 reserveIn,

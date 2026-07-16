@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Constants - pump.fun style parameters
+/// @title Constants
 library Constants {
     /* ============ Token Parameters ============ */
     /// @dev Total supply fixed at 1 B 

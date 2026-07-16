@@ -1,29 +1,29 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import type {
-  Pump,
-  PumpToken,
+  DuoLaunch,
+  TokenTemplate,
   UniswapV2Factory,
   UniswapV2Router02,
   UniswapV2Pair,
 } from "../typechain-types";
 import {
-  Pump__factory,
-  PumpToken__factory,
+  DuoLaunch__factory,
+  TokenTemplate__factory,
   UniswapV2Factory__factory,
   UniswapV2Router02__factory,
   UniswapV2Pair__factory,
 } from "../typechain-types";
 
-describe("Pump × Uniswap V2 Router Integration", function () {
+describe("DuoLaunch × Uniswap V2 Router Integration", function () {
   let owner: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
   let user1: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
   let user2: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
   let weth: any;
   let factory: UniswapV2Factory;
   let router: UniswapV2Router02;
-  let pump: Pump;
-  let token: PumpToken;
+  let duoLaunch: DuoLaunch;
+  let token: TokenTemplate;
   let tokenAddr: string;
 
   const GRADUATION_BPS = 8000;
@@ -47,18 +47,18 @@ describe("Pump × Uniswap V2 Router Integration", function () {
     );
     await router.waitForDeployment();
 
-    pump = await new Pump__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
-    await pump.waitForDeployment();
+    duoLaunch = await new DuoLaunch__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
+    await duoLaunch.waitForDeployment();
   }
 
   async function createSale() {
-    const tx = await pump.createSale("Pump Token", "PUMP", GRADUATION_BPS, ethers.parseEther("1000"));
+    const tx = await duoLaunch.createSale("DuoLaunch Token", "PUMP", GRADUATION_BPS, ethers.parseEther("1000"));
     const receipt = await tx.wait();
     const log = receipt!.logs
-      .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+      .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
       .find((p: any) => p?.name === "SaleCreated");
     tokenAddr = log!.args.token as string;
-    token = PumpToken__factory.connect(tokenAddr, owner);
+    token = TokenTemplate__factory.connect(tokenAddr, owner);
   }
 
   describe("Full Lifecycle", function () {
@@ -69,13 +69,13 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("should graduate and create a Uniswap V2 pair", async function () {
       // Buy until graduation (targetRaise = 1000 ETH)
-      const sale = await pump.getSale(tokenAddr);
+      const sale = await duoLaunch.getSale(tokenAddr);
       const remaining = sale.targetRaise;
-      const buyTx = await pump.connect(owner).buy(tokenAddr, 0n, { value: remaining });
+      const buyTx = await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: remaining });
       const receipt = await buyTx.wait();
 
       const gradLog = receipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
 
       expect(gradLog).to.not.be.undefined;
@@ -98,28 +98,28 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       }
     });
 
-    it("should maintain price continuity between Pump AMM and Uniswap V2", async function () {
+    it("should maintain price continuity between DuoLaunch AMM and Uniswap V2", async function () {
       // User1 buys some tokens
-      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
-      const saleBeforeGrad = await pump.getSale(tokenAddr);
+      await duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+      const saleBeforeGrad = await duoLaunch.getSale(tokenAddr);
 
       // Owner graduates the pool
-      const remaining = saleBeforeGrad.targetRaise - saleBeforeGrad.gasRaised;
-      const gradTx = await pump.connect(owner).buy(tokenAddr, 0n, { value: remaining });
+      const remaining = saleBeforeGrad.targetRaise - saleBeforeGrad.GASRaised;
+      const gradTx = await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: remaining });
       const gradReceipt = await gradTx.wait();
       const gradLog = gradReceipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
       const pairAddr = gradLog!.args.pair as string;
       const pair = UniswapV2Pair__factory.connect(pairAddr, owner);
 
-      const saleGrad = await pump.getSale(tokenAddr);
+      const saleGrad = await duoLaunch.getSale(tokenAddr);
       const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
-      const bcGasReserve = saleGrad.virtualGas + saleGrad.gasRaised;
+      const bcGASReserve = saleGrad.virtualGAS + saleGrad.GASRaised;
       const bcTokenReserve = saleGrad.virtualToken - saleGrad.tokensSold;
 
-      // Pump closing price = bcGasReserve / bcTokenReserve
-      // Uniswap opening price = gasReserve / tokenReserve
+      // DuoLaunch closing price = bcGASReserve / bcTokenReserve
+      // Uniswap opening price = GASReserve / tokenReserve
       const [res0, res1] = await pair.getReserves();
       const wethAddr = await weth.getAddress();
       const token0 = await pair.token0();
@@ -127,7 +127,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       const uniTokenReserve = token0.toLowerCase() === wethAddr.toLowerCase() ? res1 : res0;
 
       // Cross-multiply to compare prices: lhs ≈ rhs with tolerance
-      const lhs = bcGasReserve * uniTokenReserve;
+      const lhs = bcGASReserve * uniTokenReserve;
       const rhs = uniGasReserve * bcTokenReserve;
       const diff = lhs > rhs ? lhs - rhs : rhs - lhs;
       expect(diff * 1000000n).to.be.lt(lhs + rhs);
@@ -135,13 +135,13 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("should allow Uniswap V2 swaps after graduation", async function () {
       // User1 buys and graduates
-      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("50") });
-      const saleBeforeGrad = await pump.getSale(tokenAddr);
-      const remaining = saleBeforeGrad.targetRaise - saleBeforeGrad.gasRaised;
-      const gradTx = await pump.connect(owner).buy(tokenAddr, 0n, { value: remaining });
+      await duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("50") });
+      const saleBeforeGrad = await duoLaunch.getSale(tokenAddr);
+      const remaining = saleBeforeGrad.targetRaise - saleBeforeGrad.GASRaised;
+      const gradTx = await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: remaining });
       const gradReceipt = await gradTx.wait();
       const gradLog = gradReceipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
       const pairAddr = gradLog!.args.pair as string;
 
@@ -152,11 +152,11 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
       const deadline = ethers.MaxUint256;
       const amountsOut = await router.getAmountsOut(swapAmount, [tokenAddr, await weth.getAddress()]);
-      const expectedGas = amountsOut[1];
+      const expectedGAS = amountsOut[1];
 
       await router.connect(user1).swapExactTokensForETH(
         swapAmount,
-        expectedGas * 999n / 1000n, // 0.1% slippage
+        expectedGAS * 999n / 1000n, // 0.1% slippage
         [tokenAddr, await weth.getAddress()],
         user1.address,
         deadline
@@ -167,12 +167,12 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("should allow buying tokens via Uniswap V2 after graduation", async function () {
       // Graduate the pool, capture pair from event
-      const sale = await pump.getSale(tokenAddr);
+      const sale = await duoLaunch.getSale(tokenAddr);
       const remaining = sale.targetRaise;
-      const gradTx = await pump.connect(owner).buy(tokenAddr, 0n, { value: remaining });
+      const gradTx = await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: remaining });
       const gradReceipt = await gradTx.wait();
       const gradLog = gradReceipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
       expect(gradLog).to.not.be.undefined;
       const pairAddr = gradLog!.args.pair as string;
@@ -183,18 +183,18 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       // User2 buys tokens via Uniswap
       const wethAddr = await weth.getAddress();
       const token0 = await pair.token0();
-      const gasAmount = ethers.parseEther("10");
+      const GASAmount = ethers.parseEther("10");
 
       // Wrap ETH to WETH
-      await weth.connect(user2).deposit({ value: gasAmount });
-      await weth.connect(user2).approve(await router.getAddress(), gasAmount);
+      await weth.connect(user2).deposit({ value: GASAmount });
+      await weth.connect(user2).approve(await router.getAddress(), GASAmount);
 
-      const amountsOut = await router.getAmountsOut(gasAmount, [wethAddr, tokenAddr]);
+      const amountsOut = await router.getAmountsOut(GASAmount, [wethAddr, tokenAddr]);
       const expectedTokens = amountsOut[1];
 
       if (token0.toLowerCase() === wethAddr.toLowerCase()) {
         await router.connect(user2).swapExactTokensForTokens(
-          gasAmount,
+          GASAmount,
           expectedTokens * 999n / 1000n,
           [wethAddr, tokenAddr],
           user2.address,
@@ -203,7 +203,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
         expect(await token.balanceOf(user2.address)).to.be.gt(0n);
       } else {
         await router.connect(user2).swapExactTokensForTokens(
-          gasAmount,
+          GASAmount,
           expectedTokens * 999n / 1000n,
           [wethAddr, tokenAddr],
           user2.address,
@@ -222,27 +222,27 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("should handle concurrent buy/sell from multiple users and graduate", async function () {
       // User1 buys
-      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("5") });
+      await duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("5") });
       const u1Bal = await token.balanceOf(user1.address);
       expect(u1Bal).to.be.gt(0n);
 
       // User2 buys
-      await pump.connect(user2).buy(tokenAddr, 0n, { value: ethers.parseEther("3") });
+      await duoLaunch.connect(user2).buy(tokenAddr, 0n, { value: ethers.parseEther("3") });
       const u2Bal = await token.balanceOf(user2.address);
       expect(u2Bal).to.be.gt(0n);
 
       // User1 sells half
       const sellAmount = u1Bal / 2n;
-      await token.connect(user1).approve(await pump.getAddress(), sellAmount);
-      await pump.connect(user1).sell(tokenAddr, sellAmount, 0n);
+      await token.connect(user1).approve(await duoLaunch.getAddress(), sellAmount);
+      await duoLaunch.connect(user1).sell(tokenAddr, sellAmount, 0n);
       expect(await token.balanceOf(user1.address)).to.equal(u1Bal - sellAmount);
 
       // Graduate
-      const sale = await pump.getSale(tokenAddr);
-      const remaining = sale.targetRaise - sale.gasRaised;
-      await pump.connect(owner).buy(tokenAddr, 0n, { value: remaining });
+      const sale = await duoLaunch.getSale(tokenAddr);
+      const remaining = sale.targetRaise - sale.GASRaised;
+      await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: remaining });
 
-      const gradSale = await pump.getSale(tokenAddr);
+      const gradSale = await duoLaunch.getSale(tokenAddr);
       expect(gradSale.graduated).to.equal(true);
     });
   });
@@ -254,24 +254,24 @@ describe("Pump × Uniswap V2 Router Integration", function () {
     });
 
     it("should revert graduated sale operations", async function () {
-      const sale = await pump.getSale(tokenAddr);
-      await pump.connect(owner).buy(tokenAddr, 0n, { value: sale.targetRaise });
+      const sale = await duoLaunch.getSale(tokenAddr);
+      await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: sale.targetRaise });
 
       await expect(
-        pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("1") })
+        duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("1") })
       ).to.be.revertedWith("SALE_GRADUATED");
 
       await expect(
-        pump.connect(user1).sell(tokenAddr, 1n, 0n)
+        duoLaunch.connect(user1).sell(tokenAddr, 1n, 0n)
       ).to.be.revertedWith("SALE_GRADUATED");
     });
 
     it("should refund overpayment when buy exceeds graduation point", async function () {
-      const sale = await pump.getSale(tokenAddr);
+      const sale = await duoLaunch.getSale(tokenAddr);
       const overpay = sale.targetRaise + ethers.parseEther("5");
       const balBefore = await ethers.provider.getBalance(owner.address);
 
-      const tx = await pump.connect(owner).buy(tokenAddr, 0n, { value: overpay });
+      const tx = await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: overpay });
       const receipt = await tx.wait();
       const gasCost = receipt!.gasUsed * receipt!.gasPrice;
       const balAfter = await ethers.provider.getBalance(owner.address);
@@ -284,14 +284,14 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("should reject zero-value buys", async function () {
       await expect(
-        pump.connect(user1).buy(tokenAddr, 0n, { value: 0n })
+        duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: 0n })
       ).to.be.revertedWith("ZERO_GAS");
     });
 
     it("should reject sells with no approval", async function () {
       // Without approval, safeTransferFrom fails
       await expect(
-        pump.connect(user1).sell(tokenAddr, 100n, 0n)
+        duoLaunch.connect(user1).sell(tokenAddr, 100n, 0n)
       ).to.be.reverted;
     });
   });
@@ -300,17 +300,17 @@ describe("Pump × Uniswap V2 Router Integration", function () {
     it("should work with minimum graduation ratio (P=5001)", async function () {
       await deployInfra();
       const minBps = 6001;
-      const tx = await pump.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"));
       const receipt = await tx.wait();
       const log = receipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleCreated");
       const tAddr = log!.args.token as string;
 
-      const sale = await pump.getSale(tAddr);
-      await pump.connect(owner).buy(tAddr, 0n, { value: sale.targetRaise });
+      const sale = await duoLaunch.getSale(tAddr);
+      await duoLaunch.connect(owner).buy(tAddr, 0n, { value: sale.targetRaise });
 
-      const gradSale = await pump.getSale(tAddr);
+      const gradSale = await duoLaunch.getSale(tAddr);
       expect(gradSale.graduated).to.equal(true);
     });
 
@@ -318,10 +318,10 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       await deployInfra();
       await createSale();
 
-      const sale = await pump.getSale(tokenAddr);
-      await pump.connect(owner).buy(tokenAddr, 0n, { value: sale.targetRaise });
+      const sale = await duoLaunch.getSale(tokenAddr);
+      await duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: sale.targetRaise });
 
-      const gradSale = await pump.getSale(tokenAddr);
+      const gradSale = await duoLaunch.getSale(tokenAddr);
       expect(gradSale.graduated).to.equal(true);
     });
   });
@@ -329,7 +329,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
   describe("Graduation fund flow to Pair", function () {
     let pairAddr: string;
     let pair: UniswapV2Pair;
-    let saleGrad: Awaited<ReturnType<typeof pump.getSale>>;
+    let saleGrad: Awaited<ReturnType<typeof duoLaunch.getSale>>;
     let gradLog: any;
     let rich: NonNullable<Awaited<ReturnType<typeof ethers.getSigners>>[number]>;
 
@@ -339,28 +339,28 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       await deployInfra();
       await createSale();
 
-      await pump.connect(rich).buy(tokenAddr, 0n, { value: ethers.parseEther("30") });
+      await duoLaunch.connect(rich).buy(tokenAddr, 0n, { value: ethers.parseEther("30") });
 
-      const sale = await pump.getSale(tokenAddr);
-      const remaining = sale.targetRaise - sale.gasRaised;
-      const gradTx = await pump.connect(rich).buy(tokenAddr, 0n, { value: remaining });
+      const sale = await duoLaunch.getSale(tokenAddr);
+      const remaining = sale.targetRaise - sale.GASRaised;
+      const gradTx = await duoLaunch.connect(rich).buy(tokenAddr, 0n, { value: remaining });
       const receipt = await gradTx.wait();
       gradLog = receipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
       pairAddr = gradLog!.args.pair as string;
       pair = UniswapV2Pair__factory.connect(pairAddr, owner);
-      saleGrad = await pump.getSale(tokenAddr);
+      saleGrad = await duoLaunch.getSale(tokenAddr);
     });
 
     it("pumps all remaining tokens and raised gas into the pair", async function () {
       const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
-      const gasForLP = saleGrad.gasRaised;
+      const GASForLP = saleGrad.GASRaised;
 
       expect(gradLog!.args.tokensForLP).to.equal(tokensForLP);
-      expect(gradLog!.args.gasForLP).to.equal(gasForLP);
+      expect(gradLog!.args.GASForLP).to.equal(GASForLP);
 
-      const pumpTokenBalance = await token.balanceOf(await pump.getAddress());
+      const pumpTokenBalance = await token.balanceOf(await duoLaunch.getAddress());
       expect(pumpTokenBalance).to.equal(0n);
 
       const [res0, res1] = await pair.getReserves();
@@ -370,22 +370,17 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       const wethAddr = await weth.getAddress();
       const pairToken0 = await pair.token0();
       if (pairToken0.toLowerCase() === wethAddr.toLowerCase()) {
-        expect(res0).to.equal(gasForLP);
+        expect(res0).to.equal(GASForLP);
         expect(res1).to.equal(tokensForLP);
       } else {
         expect(res0).to.equal(tokensForLP);
-        expect(res1).to.equal(gasForLP);
+        expect(res1).to.equal(GASForLP);
       }
     });
 
     it("LP tokens are minted to address(0) and total supply is correct", async function () {
-      expect(await pair.balanceOf(await pump.getAddress())).to.equal(0n);
+      expect(await pair.balanceOf(await duoLaunch.getAddress())).to.equal(0n);
       expect(await pair.totalSupply()).to.be.gt(0n);
-    });
-
-    it("PumpToken ownership remains with Pump contract after graduation", async function () {
-      const pumpToken = PumpToken__factory.connect(tokenAddr, owner);
-      expect(await pumpToken.owner()).to.equal(await pump.getAddress());
     });
   });
 
@@ -407,36 +402,36 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       );
       await router.waitForDeployment();
 
-      const pump = await new Pump__factory(owner).deploy(
+      const duoLaunch = await new DuoLaunch__factory(owner).deploy(
         await factory.getAddress(), await weth.getAddress()
       );
-      await pump.waitForDeployment();
+      await duoLaunch.waitForDeployment();
 
       const totalSupply = ethers.parseEther("1000000000");
       const gradBps = 8000n;
       const maxTokens = totalSupply * gradBps / 10000n;
 
-      const tx = await pump.createSale("CapGrad", "CAP", gradBps, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("CapGrad", "CAP", gradBps, ethers.parseEther("1000"));
       const receipt = await tx.wait();
       const log = receipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleCreated");
       const tAddr = log!.args.token as string;
 
-      const saleBefore = await pump.getSale(tAddr);
+      const saleBefore = await duoLaunch.getSale(tAddr);
 
       const tokenReserve = saleBefore.virtualToken;
-      const gasReserve = saleBefore.virtualGas;
-      const gasToHitCap = (maxTokens * gasReserve) / (tokenReserve - maxTokens) + 1n;
+      const GASReserve = saleBefore.virtualGAS;
+      const GASToHitCap = (maxTokens * GASReserve) / (tokenReserve - maxTokens) + 1n;
 
-      const buyTx = await pump.connect(user1).buy(tAddr, 0n, { value: gasToHitCap * 2n });
+      const buyTx = await duoLaunch.connect(user1).buy(tAddr, 0n, { value: GASToHitCap * 2n });
       const gradReceipt = await buyTx.wait();
       const gradLog2 = gradReceipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
       expect(gradLog2).to.not.be.undefined;
 
-      const saleAfter = await pump.getSale(tAddr);
+      const saleAfter = await duoLaunch.getSale(tAddr);
       expect(saleAfter.graduated).to.equal(true);
       expect(saleAfter.tokensSold).to.equal(maxTokens);
     });
@@ -448,25 +443,25 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       await createSale();
     });
 
-    it("reverts when sending ETH directly to Pump contract", async function () {
+    it("reverts when sending ETH directly to DuoLaunch contract", async function () {
       await expect(
-        owner.sendTransaction({ to: await pump.getAddress(), value: ethers.parseEther("1") })
+        owner.sendTransaction({ to: await duoLaunch.getAddress(), value: ethers.parseEther("1") })
       ).to.be.reverted;
     });
 
     it("sell cannot trigger graduation even after selling all tokens", async function () {
-      await pump.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+      await duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
       const bal = await token.balanceOf(user1.address);
-      await token.connect(user1).approve(await pump.getAddress(), bal);
-      await pump.connect(user1).sell(tokenAddr, bal, 0n);
+      await token.connect(user1).approve(await duoLaunch.getAddress(), bal);
+      await duoLaunch.connect(user1).sell(tokenAddr, bal, 0n);
 
-      const sale = await pump.getSale(tokenAddr);
+      const sale = await duoLaunch.getSale(tokenAddr);
       expect(sale.graduated).to.equal(false);
     });
 
     it("createSale reverts with targetRaise = 0", async function () {
       await expect(
-        pump.createSale("Zero", "ZRO", 8000, 0n)
+        duoLaunch.createSale("Zero", "ZRO", 8000, 0n)
       ).to.be.reverted;
     });
   });
@@ -477,50 +472,50 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     beforeEach(async function () {
       await deployInfra();
-      const tx = await pump.createAndBuy("CBToken", "CBT", 8000n, ethers.parseEther("1000"), 0n, {
+      const tx = await duoLaunch.createAndBuy("CBToken", "CBT", 8000n, ethers.parseEther("1000"), 0n, {
         value: CB_BUY,
       });
       const receipt = await tx.wait();
       const log = receipt!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleCreated");
       cbTokenAddr = log!.args.token as string;
     });
 
     it("creates sale with correct initial state and tokens issued atomically", async function () {
-      const sale = await pump.getSale(cbTokenAddr);
+      const sale = await duoLaunch.getSale(cbTokenAddr);
       expect(sale.creator).to.equal(owner.address);
-      expect(sale.gasRaised).to.equal(CB_BUY);
+      expect(sale.GASRaised).to.equal(CB_BUY);
       expect(sale.tokensSold).to.be.gt(0n);
 
-      const token = PumpToken__factory.connect(cbTokenAddr, owner);
+      const token = TokenTemplate__factory.connect(cbTokenAddr, owner);
       const balance = await token.balanceOf(owner.address);
       expect(balance).to.be.gt(0n);
     });
 
     it("allows further buys and sells after createAndBuy", async function () {
-      await pump.connect(user1).buy(cbTokenAddr, 0n, { value: ethers.parseEther("30") });
-      const token = PumpToken__factory.connect(cbTokenAddr, user1);
+      await duoLaunch.connect(user1).buy(cbTokenAddr, 0n, { value: ethers.parseEther("30") });
+      const token = TokenTemplate__factory.connect(cbTokenAddr, user1);
       const user1Bal = await token.balanceOf(user1.address);
       expect(user1Bal).to.be.gt(0n);
 
       const sellAmt = user1Bal / 3n;
-      await token.connect(user1).approve(await pump.getAddress(), sellAmt);
-      await pump.connect(user1).sell(cbTokenAddr, sellAmt, 0n);
+      await token.connect(user1).approve(await duoLaunch.getAddress(), sellAmt);
+      await duoLaunch.connect(user1).sell(cbTokenAddr, sellAmt, 0n);
       expect(await token.balanceOf(user1.address)).to.equal(user1Bal - sellAmt);
     });
 
     it("can graduate and create Uniswap V2 pair after createAndBuy", async function () {
-      const sale = await pump.getSale(cbTokenAddr);
-      const remaining = sale.targetRaise - sale.gasRaised;
+      const sale = await duoLaunch.getSale(cbTokenAddr);
+      const remaining = sale.targetRaise - sale.GASRaised;
 
       await ethers.provider.send("hardhat_setBalance", [
         owner.address, "0x1000000000000000000000",
       ]);
-      const gradTx = await pump.connect(owner).buy(cbTokenAddr, 0n, { value: remaining });
+      const gradTx = await duoLaunch.connect(owner).buy(cbTokenAddr, 0n, { value: remaining });
       const rc = await gradTx.wait();
       const gradLog = rc!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
 
       expect(gradLog).to.not.be.undefined;
@@ -535,24 +530,24 @@ describe("Pump × Uniswap V2 Router Integration", function () {
 
     it("preserves price continuity through createAndBuy, further trades, and graduation", async function () {
       // User1 buys more after the atomic createAndBuy
-      await pump.connect(user1).buy(cbTokenAddr, 0n, { value: ethers.parseEther("20") });
+      await duoLaunch.connect(user1).buy(cbTokenAddr, 0n, { value: ethers.parseEther("20") });
 
       // Graduate
-      const sale = await pump.getSale(cbTokenAddr);
-      const remaining = sale.targetRaise - sale.gasRaised;
+      const sale = await duoLaunch.getSale(cbTokenAddr);
+      const remaining = sale.targetRaise - sale.GASRaised;
       await ethers.provider.send("hardhat_setBalance", [
         owner.address, "0x1000000000000000000000",
       ]);
-      const gradTx = await pump.connect(owner).buy(cbTokenAddr, 0n, { value: remaining + ethers.parseEther("1") });
+      const gradTx = await duoLaunch.connect(owner).buy(cbTokenAddr, 0n, { value: remaining + ethers.parseEther("1") });
       const rc = await gradTx.wait();
       const gradLog = rc!.logs
-        .map((l: any) => { try { return pump.interface.parseLog(l); } catch { return null; } })
+        .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
         .find((p: any) => p?.name === "SaleGraduated");
       const pairAddr = gradLog!.args.pair as string;
       const pair = UniswapV2Pair__factory.connect(pairAddr, owner);
 
-      const sGrad = await pump.getSale(cbTokenAddr);
-      const bcGas = sGrad.virtualGas + sGrad.gasRaised;
+      const sGrad = await duoLaunch.getSale(cbTokenAddr);
+      const bcGAS = sGrad.virtualGAS + sGrad.GASRaised;
       const bcToken = sGrad.virtualToken - sGrad.tokensSold;
 
       const [r0, r1] = await pair.getReserves();
@@ -561,7 +556,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       const uniGas = t0.toLowerCase() === wethAddr.toLowerCase() ? r0 : r1;
       const uniToken = t0.toLowerCase() === wethAddr.toLowerCase() ? r1 : r0;
 
-      const lhs = bcGas * uniToken;
+      const lhs = bcGAS * uniToken;
       const rhs = uniGas * bcToken;
       const diff = lhs > rhs ? lhs - rhs : rhs - lhs;
       expect(diff * 1000000n).to.be.lt(lhs + rhs);
@@ -573,7 +568,7 @@ describe("Pump × Uniswap V2 Router Integration", function () {
       const overpay = targetRaise + ethers.parseEther("5");
       const balBefore = await ethers.provider.getBalance(owner.address);
 
-      const tx = await pump.createAndBuy("Over", "OVR", 8000n, targetRaise, 0n, { value: overpay });
+      const tx = await duoLaunch.createAndBuy("Over", "OVR", 8000n, targetRaise, 0n, { value: overpay });
       const rc = await tx.wait();
       const gasCost = rc!.gasUsed * rc!.gasPrice;
       const balAfter = await ethers.provider.getBalance(owner.address);

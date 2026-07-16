@@ -110,8 +110,8 @@ contract DuoLaunchGraduationTest is Test {
     TokenTemplate public token;
 
     struct SaleData {
-        address creator; uint256 totalSupply; uint256 tokensSold; uint256 gasRaised;
-        uint256 targetRaise; uint256 virtualGas; uint256 virtualToken;
+        address creator; uint256 totalSupply; uint256 tokensSold; uint256 GASRaised;
+        uint256 targetRaise; uint256 virtualGAS; uint256 virtualToken;
         uint256 graduationBps; bool graduated;
     }
 
@@ -133,8 +133,8 @@ contract DuoLaunchGraduationTest is Test {
     }
 
     function _sale() internal view returns (SaleData memory s) {
-        (s.creator, s.totalSupply, s.tokensSold, s.gasRaised,
-         s.targetRaise, s.virtualGas, s.virtualToken,
+        (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
+         s.targetRaise, s.virtualGAS, s.virtualToken,
          s.graduationBps, s.graduated) = pump.getSale(tokenAddr);
     }
 
@@ -156,7 +156,7 @@ contract DuoLaunchGraduationTest is Test {
         _buy(alice, SMALL_TARGET);
 
         SaleData memory s = _sale();
-        assertTrue(s.graduated, "should graduate when gasRaised >= targetRaise");
+        assertTrue(s.graduated, "should graduate when GASRaised >= targetRaise");
 
         // Verify pair created
         address pairAddr = factory.getPair(tokenAddr, WGAS);
@@ -167,13 +167,13 @@ contract DuoLaunchGraduationTest is Test {
         (uint112 r0, uint112 r1,) = pair.getReserves();
 
         address t0 = pair.token0();
-        (uint112 uniToken, uint112 uniGas) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
+        (uint112 uniToken, uint112 uniGAS) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
 
         uint256 tokensForLP = s.totalSupply - s.tokensSold;
-        uint256 gasForLP = s.gasRaised;
+        uint256 GASForLP = s.GASRaised;
 
         assertEq(uniToken, uint112(tokensForLP), "pair token reserve mismatch");
-        assertEq(uniGas,   uint112(gasForLP),     "pair gas reserve mismatch");
+        assertEq(uniGAS,   uint112(GASForLP),     "pair gas reserve mismatch");
 
         // LP tokens burned to address(0)
         assertTrue(pair.balanceOf(address(0)) >= 1000, "MINIMUM_LIQUIDITY not burned");
@@ -196,7 +196,7 @@ contract DuoLaunchGraduationTest is Test {
         SaleData memory s0 = _sale();
         uint256 maxT = _maxTokens(s0);
         uint256 capGas = CurveMath.getAmountIn(
-            s0.virtualGas, s0.virtualToken, maxT
+            s0.virtualGAS, s0.virtualToken, maxT
         );
 
         // Buy exactly the cap amount (this triggers graduation)
@@ -220,7 +220,7 @@ contract DuoLaunchGraduationTest is Test {
         SaleData memory s0 = _sale();
         uint256 maxT = _maxTokens(s0);
         uint256 exactGas = CurveMath.getAmountIn(
-            s0.virtualGas, s0.virtualToken, maxT
+            s0.virtualGAS, s0.virtualToken, maxT
         );
 
         uint256 overpay = 10 ether;
@@ -282,9 +282,9 @@ contract DuoLaunchGraduationTest is Test {
         assertTrue(s.graduated, "should graduate");
 
         // Compute DuoLaunch closing price from final state
-        uint256 closingGasReserve = s.virtualGas + s.gasRaised;
+        uint256 closingGASReserve = s.virtualGAS + s.GASRaised;
         uint256 closingTokenReserve = s.virtualToken - s.tokensSold;
-        uint256 pumpClosingPrice = closingGasReserve * 1e18 / closingTokenReserve;
+        uint256 pumpClosingPrice = closingGASReserve * 1e18 / closingTokenReserve;
 
         // Get Uniswap opening price
         address pairAddr = factory.getPair(tokenAddr, WGAS);
@@ -292,8 +292,8 @@ contract DuoLaunchGraduationTest is Test {
         (uint112 r0, uint112 r1,) = pair.getReserves();
 
         address t0 = pair.token0();
-        (uint256 uniToken, uint256 uniGas) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
-        uint256 uniPrice = uniGas * 1e18 / uniToken;
+        (uint256 uniToken, uint256 uniGAS) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
+        uint256 uniPrice = uniGAS * 1e18 / uniToken;
 
         // DuoLaunch closing price should equal Uniswap opening price
         // (all remaining reserves + raised gas are transferred to the pair)
@@ -349,8 +349,8 @@ contract DuoLaunchGraduationTest is Test {
     // ─── Scenario 9:  Fuzz — random buy amounts until graduation ─
     // Runs: forge test --match-test testFuzz_Graduation -vvv
 
-    function testFuzz_Graduation_RandomBuy(uint96 gasAmount) public {
-        vm.assume(gasAmount > 0.001 ether && gasAmount <= 10 ether);
+    function testFuzz_Graduation_RandomBuy(uint96 GASAmount) public {
+        vm.assume(GASAmount > 0.001 ether && GASAmount <= 10 ether);
 
         vm.prank(alice);
         tokenAddr = pump.createSale("Fuzz", "FUZ", P, TARGET);
@@ -361,7 +361,7 @@ contract DuoLaunchGraduationTest is Test {
             SaleData memory s = _sale();
             if (s.graduated) break;
 
-            _buy(alice, gasAmount);
+            _buy(alice, GASAmount);
 
             s = _sale();
             if (s.graduated) {
@@ -373,15 +373,15 @@ contract DuoLaunchGraduationTest is Test {
                 IUniswapV2PairLike pair = IUniswapV2PairLike(pairAddr);
                 (uint112 r0, uint112 r1,) = pair.getReserves();
                 address t0 = pair.token0();
-                (uint256 rToken, uint256 rGas) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
+                (uint256 rToken, uint256 rGAS) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
                 assertEq(rToken, s.totalSupply - s.tokensSold, "token reserves mismatch");
-                assertTrue(rGas > 0, "gas reserves should be > 0");
+                assertTrue(rGAS > 0, "gas reserves should be > 0");
                 return;
             }
 
             // Pre-graduation invariants
             assertTrue(s.tokensSold <= _maxTokens(s), "cap exceeded");
-            assertTrue(s.virtualGas + s.gasRaised > 0, "gas reserve zero");
+            assertTrue(s.virtualGAS + s.GASRaised > 0, "gas reserve zero");
             assertTrue(s.virtualToken - s.tokensSold > 0, "token reserve zero");
         }
     }

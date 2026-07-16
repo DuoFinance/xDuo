@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title TokenTemplate - pump.fun style ERC20 token on NeoX
-/// @notice Deployed by the DuoLaunch main contract, fixed supply of 1B, non-upgradeable, non-mintable
+/// @title TokenTemplate - ERC20 token on NeoX
+/// @notice Deployed by the DuoLaunch contract, fixed supply of 1B, non-upgradeable, non-mintable
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TokenTemplate is ERC20 {

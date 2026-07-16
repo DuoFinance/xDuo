@@ -3,7 +3,7 @@ import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
-const PUMP_FQN = "contracts/pump/Pump.sol:Pump";
+const PUMP_FQN = "contracts/duoLaunch/DuoLaunch.sol:DuoLaunch";
 
 async function deployPump(
   factoryAddress: string,

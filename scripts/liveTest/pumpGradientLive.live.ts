@@ -15,7 +15,7 @@ const PUMP_ABI = [
   "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
-  "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 gasRaised, uint256 targetRaise, uint256 virtualGas, uint256 virtualToken, uint256 graduationBps, bool graduated)",
+  "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 GASRaised, uint256 targetRaise, uint256 virtualGAS, uint256 virtualToken, uint256 graduationBps, bool graduated)",
   "function getCurrentPrice(address) view returns (uint256)",
 ];
 
@@ -131,10 +131,10 @@ async function runRound(
   // ── 2. Verify virtual reserves ──
   console.log(`\n[2] Virtual reserves...`);
   const s: any = await pump.getSale(tokenAddr);
-  const vGas   = s.virtualGas as bigint;
+  const vGAS   = s.virtualGAS as bigint;
   const vToken = s.virtualToken as bigint;
   const totalSupply = s.totalSupply as bigint;
-  console.log(`   virtualGas  : ${ethers.formatEther(vGas)} ETH`);
+  console.log(`   virtualGas  : ${ethers.formatEther(vGAS)} ETH`);
   console.log(`   virtualToken: ${ethers.formatEther(vToken)} tokens`);
 
   const p = BigInt(bps);
@@ -142,9 +142,9 @@ async function runRound(
   const expVToken = totalSupply * p * p / (BPS_DENOM * twoPm1);
   const expVGas   = targetRaise * (BPS_DENOM - p) / twoPm1;
   console.log(`   expected vToken: ${ethers.formatEther(expVToken)}`);
-  console.log(`   expected vGas  : ${ethers.formatEther(expVGas)}`);
+  console.log(`   expected vGAS  : ${ethers.formatEther(expVGas)}`);
   assert.strictEqual(vToken, expVToken, "vToken mismatch");
-  assert.strictEqual(vGas,   expVGas,   "vGas mismatch");
+  assert.strictEqual(vGAS,   expVGas,   "vGAS mismatch");
   console.log(`   ✓`);
 
   // ── 3. Dynamic buy stages ──
@@ -164,7 +164,7 @@ async function runRound(
     console.log(`   Already fully funded by initial buy`);
   }
 
-  const K0 = vGas * vToken;
+  const K0 = vGAS * vToken;
   let graduated = initialBuyEth ? (targetEthNum <= 0n) : false;
 
   for (let i = 0; i < stages.length; i++) {
@@ -194,7 +194,7 @@ async function runRound(
 
     // ── 4. K invariant ──
     const s2: any = await pump.getSale(tokenAddr);
-    const K = (BigInt(s2.virtualGas) + BigInt(s2.gasRaised)) * (BigInt(s2.virtualToken) - BigInt(s2.tokensSold));
+    const K = (BigInt(s2.virtualGAS) + BigInt(s2.GASRaised)) * (BigInt(s2.virtualToken) - BigInt(s2.tokensSold));
     const kDiff = K > K0 ? K - K0 : K0 - K;
     const kDrift = kDiff * 10000n / K0;
     console.log(`      K drift: ${kDrift} bps`);
@@ -246,19 +246,19 @@ async function runRound(
 
   // ── 7. Price continuity ──
   console.log(`\n[5] Price continuity...`);
-  const bcGas   = BigInt(sFinal.virtualGas) + BigInt(sFinal.gasRaised);
+  const bcGAS   = BigInt(sFinal.virtualGAS) + BigInt(sFinal.GASRaised);
   const bcToken = BigInt(sFinal.virtualToken) - BigInt(sFinal.tokensSold);
 
   const wethIsT0 = (await pair.token0()).toLowerCase() === wgas.toLowerCase();
   const uniGas   = wethIsT0 ? r0 : r1;
   const uniToken = wethIsT0 ? r1 : r0;
 
-  // cross-multiply: bcGas/uniGas ≈ bcToken/uniToken
-  const lhs = BigInt(bcGas) * BigInt(uniToken);
+  // cross-multiply: bcGAS/uniGas ≈ bcToken/uniToken
+  const lhs = BigInt(bcGAS) * BigInt(uniToken);
   const rhs = BigInt(uniGas) * BigInt(bcToken);
   const diff = lhs > rhs ? lhs - rhs : rhs - lhs;
   const rel  = diff * 1000000n / (lhs + rhs);
-  console.log(`   Pump closing price: ${ethers.formatEther(bcGas)} / ${ethers.formatEther(bcToken)}`);
+  console.log(`   Pump closing price: ${ethers.formatEther(bcGAS)} / ${ethers.formatEther(bcToken)}`);
   console.log(`   Uni opening price : ${ethers.formatEther(uniGas)} / ${ethers.formatEther(uniToken)}`);
   console.log(`   Relative diff: ${rel} / 1,000,000`);
   assert.ok(diff * 1000000n < lhs + rhs, "price divergence > 0.0001%");
@@ -303,7 +303,7 @@ async function main() {
   code = await ethers.provider.getCode(deployed.factory);
   assert.notStrictEqual(code, "0x", `No Factory bytecode at ${deployed.factory}`);
 
-  const pumpArtifact = await hre.artifacts.readArtifact("contracts/pump/Pump.sol:Pump");
+  const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   pumpIface = new ethers.Interface(pumpArtifact.abi);
   const pump: any = await ethers.getContractAt(pumpArtifact.abi, deployed.pump);
   const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title DuoLaunch - pump.fun style Fair Launch contract
+/// @title DuoLaunch - Fair Launch contract
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
 /// @dev Github repo : https://github.com/DuoFinance/xDuo.git
 ///   - Internal bonding curve two-way trading
@@ -26,9 +26,9 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         address creator;
         uint256 totalSupply;     // Fixed 1B
         uint256 tokensSold;      // Tokens sold
-        uint256 gasRaised;       // Gas raised
-        uint256 targetRaise;     // Graduation target gas
-        uint256 virtualGas;      // vGas
+        uint256 GASRaised;       // GAS raised
+        uint256 targetRaise;     // Graduation target GAS raised
+        uint256 virtualGAS;      // vGAS
         uint256 virtualToken;    // vToken
         uint256 graduationBps;   // P（bps）
         bool    graduated;       // Whether graduated
@@ -97,37 +97,37 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
 
     /* ============ Sell ============ */
     /// @inheritdoc IDuo
-    function sell(address token, uint256 tokensIn, uint256 minGasOut)
+    function sell(address token, uint256 tokensIn, uint256 minGASOut)
         external
         saleActive(token)
         nonReentrant
-        returns (uint256 gasOut)
+        returns (uint256 GASOut)
     {
         SaleInfo storage s = sales[token];
         require(tokensIn > 0, "ZERO_TOKENS");
 
         // 1. Calculate current virtual reserves
-        uint256 gasReserve   = s.virtualGas + s.gasRaised;
+        uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
 
         // 2. Calculate GAS due
-        gasOut = CurveMath.getAmountOut(tokenReserve, gasReserve, tokensIn);
-        require(gasOut > 0, "ZERO_GAS");
-        require(gasOut >= minGasOut, "SLIPPAGE");
-        require(gasOut <= s.gasRaised, "INSUFFICIENT_GAS");
+        GASOut = CurveMath.getAmountOut(tokenReserve, GASReserve, tokensIn);
+        require(GASOut > 0, "ZERO_GAS");
+        require(GASOut >= minGASOut, "SLIPPAGE");
+        require(GASOut <= s.GASRaised, "INSUFFICIENT_GAS");
 
         // 3. Update state (Checks-Effects-Interactions: state before external calls)
         s.tokensSold -= tokensIn;
-        s.gasRaised  -= gasOut;
+        s.GASRaised  -= GASOut;
 
         // 4. Transfer tokens from seller
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
 
         // 5. Transfer GAS to seller
-        (bool ok, ) = msg.sender.call{value: gasOut}("");
+        (bool ok, ) = msg.sender.call{value: GASOut}("");
         require(ok, "GAS_TRANSFER_FAILED");
 
-        emit TokensSold(msg.sender, token, tokensIn, gasOut);
+        emit TokensSold(msg.sender, token, tokensIn, GASOut);
     }
 
     /* ============ Internal: Create Sale ============ */
@@ -155,22 +155,22 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
 
         // Calculate virtual pool parameters (P = p / BPS_DENOM)
         // vToken = T * p² / BPS_DENOM / (2p - BPS_DENOM)
-        // vGas   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
+        // vGAS   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
         uint256 p = graduationBps;
         require(2 * p > Constants.BPS_DENOMINATOR, "INVALID_GRADUATION");
         uint256 twoPminusOne = 2 * p - Constants.BPS_DENOMINATOR;
 
         uint256 pSquared = p * p;
         uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / (Constants.BPS_DENOMINATOR * twoPminusOne);
-        uint256 vGas   = targetRaise * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
+        uint256 vGAS   = targetRaise * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
 
         sales[token] = SaleInfo({
             creator: creator,
             totalSupply: Constants.TOTAL_SUPPLY,
             tokensSold: 0,
-            gasRaised: 0,
+            GASRaised: 0,
             targetRaise: targetRaise,
-            virtualGas: vGas,
+            virtualGAS: vGAS,
             virtualToken: vToken,
             graduationBps: p,
             graduated: false,
@@ -184,19 +184,19 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
     /// @dev Shared core logic for buy() and createAndBuy(). Assumes the caller has already
     ///      verified saleActive (buy() via modifier; createAndBuy() by construction, since
     ///      the sale was just created in the same transaction).
-    function _buy(address token, uint256 gasIn, uint256 minTokensOut, address buyer)
+    function _buy(address token, uint256 GASIn, uint256 minTokensOut, address buyer)
         internal
         returns (uint256 tokensOut)
     {
         SaleInfo storage s = sales[token];
 
         // 1. Calculate current virtual reserves
-        uint256 gasReserve   = s.virtualGas + s.gasRaised;
+        uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
         require(tokenReserve > 0, "NO_TOKENS_LEFT");
 
         // 2. Calculate tokens due
-        tokensOut = CurveMath.getAmountOut(gasReserve, tokenReserve, gasIn);
+        tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASIn);
         require(tokensOut > 0, "ZERO_TOKENS");
         require(tokensOut >= minTokensOut, "SLIPPAGE");
 
@@ -204,16 +204,16 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 maxTokens = s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
         uint256 remainingToGrad = maxTokens - s.tokensSold;
         uint256 refund = 0;
-        uint256 gasInOriginal = gasIn;
+        uint256 GASInOriginal = GASIn;
         if (tokensOut > remainingToGrad) {
             tokensOut = remainingToGrad;
-            gasIn = CurveMath.getAmountIn(gasReserve, tokenReserve, tokensOut);
-            refund = gasInOriginal - gasIn;
+            GASIn = CurveMath.getAmountIn(GASReserve, tokenReserve, tokensOut);
+            refund = GASInOriginal - GASIn;
         }
 
         // 4. Update state (Checks-Effects-Interactions: state changes before external calls)
         s.tokensSold += tokensOut;
-        s.gasRaised  += gasIn;
+        s.GASRaised  += GASIn;
 
         // 5. Transfer tokens to buyer
         IERC20(token).safeTransfer(buyer, tokensOut);
@@ -224,10 +224,10 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
             require(ok, "REFUND_FAILED");
         }
 
-        emit TokensPurchased(buyer, token, gasIn, tokensOut);
+        emit TokensPurchased(buyer, token, GASIn, tokensOut);
 
         // 7. Check if graduated (GAS target reached OR all graduation tokens sold)
-        if (s.gasRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
+        if (s.GASRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
             _graduate(token);
         }
     }
@@ -245,8 +245,8 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
 
         uint256 tokensForLP = s.totalSupply - s.tokensSold;
         require(tokensForLP > 0, "NO_TOKENS_FOR_LP");
-        uint256 gasForLP = s.gasRaised;
-        require(gasForLP > 0, "NO_GAS_FOR_LP");
+        uint256 GASForLP = s.GASRaised;
+        require(GASForLP > 0, "NO_GAS_FOR_LP");
 
         // Ensure pair exists (createPair reverts if pair already exists)
         address pair = IUniswapV2Factory(uniswapFactory).getPair(token, weth);
@@ -259,16 +259,16 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         s.pair = pair;
 
         // 1. Wrap GAS to WGAS
-        IWETH(weth).deposit{value: gasForLP}();
+        IWETH(weth).deposit{value: GASForLP}();
 
         // 2. Transfer token and WGAS to pair
         IERC20(token).safeTransfer(pair, tokensForLP);
-        IERC20(weth).safeTransfer(pair, gasForLP);
+        IERC20(weth).safeTransfer(pair, GASForLP);
 
         // 3. Mint LP tokens to burn address (locks liquidity permanently)
         IUniswapV2Pair(pair).mint(address(0));
 
-        emit SaleGraduated(token, pair, tokensForLP, gasForLP);
+        emit SaleGraduated(token, pair, tokensForLP, GASForLP);
     }
 
     /* ============ Queries ============ */
@@ -284,17 +284,17 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         address creator,
         uint256 totalSupply,
         uint256 tokensSold,
-        uint256 gasRaised,
+        uint256 GASRaised,
         uint256 targetRaise,
-        uint256 virtualGas,
+        uint256 virtualGAS,
         uint256 virtualToken,
         uint256 graduationBps,
         bool    graduated
     ) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
-        return (s.creator, s.totalSupply, s.tokensSold, s.gasRaised,
-                s.targetRaise, s.virtualGas, s.virtualToken, s.graduationBps, s.graduated);
+        return (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
+                s.targetRaise, s.virtualGAS, s.virtualToken, s.graduationBps, s.graduated);
     }
 
     /// @inheritdoc IDuo
@@ -302,31 +302,31 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
         require(!s.graduated, "SALE_GRADUATED");
-        uint256 gasReserve   = s.virtualGas + s.gasRaised;
+        uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
         require(tokenReserve > 0, "NO_TOKENS");
-        // Price = gasReserve / tokenReserve * 1e18
-        return gasReserve * 1e18 / tokenReserve;
+        // Price = GASReserve / tokenReserve * 1e18
+        return GASReserve * 1e18 / tokenReserve;
     }
 
     /// @inheritdoc IDuo
-    function getTokensForGas(address token, uint256 gasAmount) external view returns (uint256) {
+    function getTokensForGAS(address token, uint256 GASAmount) external view returns (uint256) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
         require(!s.graduated, "SALE_GRADUATED");
-        uint256 gasReserve   = s.virtualGas + s.gasRaised;
+        uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
-        return CurveMath.getAmountOut(gasReserve, tokenReserve, gasAmount);
+        return CurveMath.getAmountOut(GASReserve, tokenReserve, GASAmount);
     }
 
     /// @inheritdoc IDuo
-    function getGasForTokens(address token, uint256 tokenAmount) external view returns (uint256) {
+    function getGASForTokens(address token, uint256 tokenAmount) external view returns (uint256) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
         require(!s.graduated, "SALE_GRADUATED");
-        uint256 gasReserve   = s.virtualGas + s.gasRaised;
+        uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
-        return CurveMath.getAmountOut(tokenReserve, gasReserve, tokenAmount);
+        return CurveMath.getAmountOut(tokenReserve, GASReserve, tokenAmount);
     }
 
     /* ============ Receive ============ */

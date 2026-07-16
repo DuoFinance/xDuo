@@ -90,18 +90,18 @@ async function main() {
   routerAddr = deployed.router;
   factoryAddr = deployed.factory;
 
-  const pumpArtifact = await hre.artifacts.readArtifact("contracts/pump/Pump.sol:Pump");
+  const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   saleIface = new ethers.Interface(pumpArtifact.abi);
 
   // Verify contracts exist on this network
   const pumpCode = await ethers.provider.getCode(pumpAddr);
   if (pumpCode === "0x" || pumpCode === "0x0") {
-    _log(FAIL, `No Pump bytecode at ${pumpAddr}`);
+    _log(FAIL, `No DuoLaunch bytecode at ${pumpAddr}`);
     _log(INFO, "Run with: --network legacy (anvil fork of NeoX mainnet)");
     process.exit(1);
   }
 
-  _log(INFO, `Factory=${factoryAddr} Router=${routerAddr} Pump=${pumpAddr}`);
+  _log(INFO, `Factory=${factoryAddr} Router=${routerAddr} DuoLaunch=${pumpAddr}`);
   const bal = async (w: string, s: any) => _log(INFO, `${w}: ${ethers.formatEther(await ethers.provider.getBalance(s.address))}`);
   await bal("Deployer", deployer); await bal("Attacker", attacker); await bal("Victim", victim);
 
@@ -253,7 +253,7 @@ async function main() {
     }
   } catch (e: any) {
     _log(WARN, `createAndBuy unavailable on this contract (${(e?.message || "").slice(0,60)})`);
-    _log(INFO, "Redeploy Pump to enable createAndBuy test");
+    _log(INFO, "Redeploy DuoLaunch to enable createAndBuy test");
   }
 
   // ──── 8. FULL LIFECYCLE ────
