@@ -2,13 +2,14 @@
 src = "contracts/pump"
 out = "out"
 libs = ["lib", "node_modules"]
-test = "testSol"
+test = "testsol"
 solc = "0.8.24"
 via_ir = true
 optimizer = true
 ffi = false
 
 remappings = [
+    "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
 ]
 
