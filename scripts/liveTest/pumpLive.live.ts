@@ -15,7 +15,7 @@ const PUMP_ABI = [
   "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
-  "function getSale(address) view returns (address creator, uint256 totalSupply, uint256 tokensSold, uint256 GASRaised, uint256 targetRaise, uint256 virtualGAS, uint256 virtualToken, uint256 graduationBps, bool graduated, address pair)",
+  "function getSale(address) view returns (address creator, uint256 tokensSold, uint256 GASRaised, uint256 targetRaise, uint256 virtualGAS, uint256 virtualToken, uint256 graduationBps, bool graduated)",
   "function getCurrentPrice(address) view returns (uint256)",
   "function getTokensForGAS(address,uint256) view returns (uint256)",
   "function getGASForTokens(address,uint256) view returns (uint256)",

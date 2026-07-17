@@ -150,7 +150,6 @@ contract DuoLaunchInvariants is Test {
 
     struct SaleData {
         address creator;
-        uint256 totalSupply;
         uint256 tokensSold;
         uint256 GASRaised;
         uint256 targetRaise;
@@ -158,7 +157,6 @@ contract DuoLaunchInvariants is Test {
         uint256 virtualToken;
         uint256 graduationBps;
         bool graduated;
-        address pair;
     }
 
     // ─── Setup ────────────────────────────────────────────────
@@ -180,9 +178,9 @@ contract DuoLaunchInvariants is Test {
     // ─── Helpers ──────────────────────────────────────────────
 
     function _sale() internal view returns (SaleData memory s) {
-        (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
+        (s.creator, s.tokensSold, s.GASRaised,
          s.targetRaise, s.virtualGAS, s.virtualToken,
-         s.graduationBps, s.graduated, s.pair) = pump.getSale(tokenAddr);
+         s.graduationBps, s.graduated) = pump.getSale(tokenAddr);
     }
 
     function _k(SaleData memory s) internal pure returns (uint256) {
@@ -190,7 +188,7 @@ contract DuoLaunchInvariants is Test {
     }
 
     function _maxTokens(SaleData memory s) internal pure returns (uint256) {
-        return s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
+        return Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
     }
 
     function _buy(address from, uint256 amount) internal {
@@ -278,7 +276,7 @@ contract DuoLaunchInvariants is Test {
     function test_TokenConservation_AfterBuy() public {
         _buy(alice, 1 ether);
         SaleData memory s = _sale();
-        assertEq(token.balanceOf(address(pump)), s.totalSupply - s.tokensSold);
+        assertEq(token.balanceOf(address(pump)), Constants.TOTAL_SUPPLY - s.tokensSold);
     }
 
     function test_TokenConservation_AfterBuySell() public {
@@ -287,7 +285,7 @@ contract DuoLaunchInvariants is Test {
         _approveAndSell(alice, bal / 2);
 
         SaleData memory s = _sale();
-        assertEq(token.balanceOf(address(pump)), s.totalSupply - s.tokensSold);
+        assertEq(token.balanceOf(address(pump)), Constants.TOTAL_SUPPLY - s.tokensSold);
     }
 
     function testFuzz_TokenConservation(uint256 GASAmount) public {
@@ -298,7 +296,7 @@ contract DuoLaunchInvariants is Test {
         SaleData memory s = _sale();
         if (s.graduated) return;
 
-        assertEq(token.balanceOf(address(pump)), s.totalSupply - s.tokensSold);
+        assertEq(token.balanceOf(address(pump)), Constants.TOTAL_SUPPLY - s.tokensSold);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -312,16 +310,16 @@ contract DuoLaunchInvariants is Test {
             vm.prank(alice);
             address t = pump.createSale("T", "T", bps[i], TARGET);
             for (uint256 j = 0; j < 12; j++) {
-                (,uint256 ts, uint256 tokensSold,,,,,, bool graduated,) = pump.getSale(t);
+                (,uint256 tokensSold,,,,,, bool graduated) = pump.getSale(t);
                 if (graduated) break;
-                uint256 cap = ts * bps[i] / Constants.BPS_DENOMINATOR;
+                uint256 cap = Constants.TOTAL_SUPPLY * bps[i] / Constants.BPS_DENOMINATOR;
                 assertTrue(tokensSold <= cap, "cap exceeded before buy");
                 uint256 remaining = cap - tokensSold;
                 if (remaining == 0) break;
                 vm.prank(bob);
                 vm.deal(bob, 1000 ether);
                 pump.buy{value: 10 ether}(t, 0);
-                (,ts, tokensSold,,,,,, graduated,) = pump.getSale(t);
+                (,tokensSold,,,,,, graduated) = pump.getSale(t);
                 if (graduated) break;
                 assertTrue(tokensSold <= cap, "cap exceeded after buy");
             }
@@ -496,7 +494,7 @@ contract DuoLaunchInvariants is Test {
         address pairAddr = factory.getPair(tokenAddr, address(weth));
         assertTrue(pairAddr != address(0), "pair not created");
 
-        uint256 tokensForLP = s.totalSupply - s.tokensSold;
+        uint256 tokensForLP = Constants.TOTAL_SUPPLY - s.tokensSold;
         uint256 GASForLP = s.GASRaised;
 
         assertEq(token.balanceOf(pairAddr), tokensForLP, "pair missing tokens");
@@ -513,11 +511,11 @@ contract DuoLaunchInvariants is Test {
         (address t,) = pump.createAndBuy{value: 10 ether}("CB", "CB", P, TARGET, 0);
 
         TokenTemplate tkn = TokenTemplate(t);
-        (,uint256 ts, uint256 tokensSold, uint256 GASRaised,,uint256 vg, uint256 vt,,,) = pump.getSale(t);
+        (,uint256 tokensSold, uint256 GASRaised,,uint256 vg, uint256 vt,,) = pump.getSale(t);
 
         assertTrue(vg > 0, "vGAS zero after createAndBuy");
         assertTrue(vt > 0, "vToken zero after createAndBuy");
-        assertEq(tkn.balanceOf(address(pump)), ts - tokensSold);
+        assertEq(tkn.balanceOf(address(pump)), Constants.TOTAL_SUPPLY - tokensSold);
         assertTrue(tkn.balanceOf(bob) > 0, "buyer got no tokens");
 
         // k invariant
@@ -623,7 +621,7 @@ contract DuoLaunchInvariants is Test {
         SaleData memory s = _sale();
         assertTrue(s.graduated, "graduated should be true");
         assertTrue(
-            token.balanceOf(pairAddr) + token.balanceOf(address(pump)) == s.totalSupply - s.tokensSold,
+            token.balanceOf(pairAddr) + token.balanceOf(address(pump)) == Constants.TOTAL_SUPPLY - s.tokensSold,
             "token accounting mismatch after graduation"
         );
     }
@@ -993,7 +991,7 @@ contract DuoLaunchInvariants is Test {
                 assertEq(token_, tokenAddr, "event token");
                 assertTrue(pair != address(0), "event pair non-zero");
                 SaleData memory s = _sale();
-                assertEq(tokensForLP, s.totalSupply - s.tokensSold, "event tokensForLP");
+                assertEq(tokensForLP, Constants.TOTAL_SUPPLY - s.tokensSold, "event tokensForLP");
                 assertEq(GASForLP, s.GASRaised, "event GASForLP");
                 found = true;
                 break;
@@ -1080,7 +1078,7 @@ contract DuoLaunchInvariants is Test {
         TokenTemplate tk = TokenTemplate(t);
 
         // Verify state after createAndBuy
-        (,,,,, uint256 vg, uint256 vt,,,) = pump.getSale(t);
+        (,,,, uint256 vg, uint256 vt,,) = pump.getSale(t);
         assertTrue(vg > 0, "vGAS should be set");
         assertTrue(vt > 0, "vToken should be set");
         assertTrue(tk.balanceOf(bob) > 0, "buyer should have tokens");
@@ -1094,7 +1092,7 @@ contract DuoLaunchInvariants is Test {
         assertTrue(GASOut > 0, "sell should return GAS");
 
         // Token conservation check
-        (,,,,,, uint256 tokensSold,,,) = pump.getSale(t);
+        (,uint256 tokensSold,,,,,,) = pump.getSale(t);
         assertTrue(tokensSold < 10 ether / 1e18 * 1e27, "tokensSold after partial sell");
     }
 
@@ -1113,7 +1111,7 @@ contract DuoLaunchInvariants is Test {
 
         uint256 k0;
         {
-            (,,,,, uint256 ivg, uint256 ivt,,,) = pump.getSale(t);
+            (,,,, uint256 ivg, uint256 ivt,,) = pump.getSale(t);
             k0 = ivg * ivt;
         }
 
@@ -1131,7 +1129,7 @@ contract DuoLaunchInvariants is Test {
                 // Sell half
                 uint256 sellAmt = tk.balanceOf(bob) / 2;
                 if (sellAmt > 0) {
-                    (,,,,,,,, bool grad,) = pump.getSale(t);
+                    (,,,,,,, bool grad) = pump.getSale(t);
                     if (!grad) {
                         vm.prank(bob);
                         pump.sell(t, sellAmt, 0);
@@ -1140,12 +1138,12 @@ contract DuoLaunchInvariants is Test {
             }
 
             // Check invariants
-            (,,,,, uint256 vg2, uint256 vt2,, bool graduated,) = pump.getSale(t);
+            (,,,, uint256 vg2, uint256 vt2,, bool graduated) = pump.getSale(t);
             if (graduated) break;
 
             // k should stay constant (within rounding)
             SaleData memory s;
-            (,, s.tokensSold, s.GASRaised,,,,,,) = pump.getSale(t);
+            (, s.tokensSold, s.GASRaised,,,,,) = pump.getSale(t);
             uint256 k1 = (vg2 + s.GASRaised) * (vt2 - s.tokensSold);
             assertApproxEqRel(k1, k0, 1e14, "k invariant in continuous trades");
         }

@@ -315,7 +315,7 @@ describe("Uni2 legacy NeoX smoke", function () {
     // 4. Verify sale info
     const sale = await duoLaunch.getSale(tokenAddr);
     expect(sale.creator).to.equal(owner.address);
-    expect(sale.totalSupply).to.equal(ethers.parseEther("1000000000"));
+    // totalSupply is a fixed constant (1B), no longer in struct
     expect(sale.graduated).to.equal(false);
 
     expect(await token.name()).to.equal("DuoLaunch Token");
@@ -398,7 +398,7 @@ describe("Uni2 legacy NeoX smoke", function () {
     // 11. Price continuity: BC closing price ≈ Uniswap opening price
     // BC price  = (vGas + gasRaised) / (vToken - tokensSold)
     // Uniswap   = gasRaised / (totalSupply - tokensSold)
-    const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
+    const tokensForLP = ethers.parseEther("1000000000") - saleGrad.tokensSold;
     const bcGASReserve = saleGrad.virtualGAS + saleGrad.GASRaised;
     const bcTokenReserve = saleGrad.virtualToken - saleGrad.tokensSold;
     // Cross-multiply: (vGas+gasRaised) * (totalSupply-tokensSold) ≈ gasRaised * (vToken-tokensSold)

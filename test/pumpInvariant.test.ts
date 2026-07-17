@@ -17,6 +17,8 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
   let weth: any;
   let GraduationBps: number;
 
+  const TOTAL_SUPPLY = ethers.parseEther("1000000000");
+
   // ─── helpers ───────────────────────────────────────────────
   async function deploy(graduationBps: number) {
     GraduationBps = graduationBps;
@@ -120,17 +122,17 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
 
       const pumpAddr = await duoLaunch.getAddress();
       const s0 = await duoLaunch.getSale(tokenAddr);
-      expect(await token.balanceOf(pumpAddr)).to.equal(s0.totalSupply - s0.tokensSold);
+      expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s0.tokensSold);
 
       await duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("8") });
       const s1 = await duoLaunch.getSale(tokenAddr);
-      expect(await token.balanceOf(pumpAddr)).to.equal(s1.totalSupply - s1.tokensSold);
+      expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s1.tokensSold);
 
       const bal = await token.balanceOf(user1.address);
       await token.connect(user1).approve(await duoLaunch.getAddress(), bal / 2n);
       await duoLaunch.connect(user1).sell(tokenAddr, bal / 2n, 0n);
       const s2 = await duoLaunch.getSale(tokenAddr);
-      expect(await token.balanceOf(pumpAddr)).to.equal(s2.totalSupply - s2.tokensSold);
+      expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s2.tokensSold);
     });
   });
 
@@ -140,7 +142,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       it(`P = ${p}`, async function () {
         await deploy(p);
         const s = await duoLaunch.getSale(tokenAddr);
-        const cap = s.totalSupply * BigInt(p) / 10000n;
+        const cap = TOTAL_SUPPLY * BigInt(p) / 10000n;
 
         for (let i = 0; i < 10; i++) {
           const s2 = await duoLaunch.getSale(tokenAddr);
@@ -267,7 +269,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       const sGrad = await duoLaunch.getSale(tokenAddr);
       const bcGASReserve = sGrad.virtualGAS + sGrad.GASRaised;
       const bcTokenReserve = sGrad.virtualToken - sGrad.tokensSold;
-      const tokensForLP = sGrad.totalSupply - sGrad.tokensSold;
+      const tokensForLP = TOTAL_SUPPLY - sGrad.tokensSold;
 
       const [r0, r1] = await pair.getReserves();
       const wethAddr = await weth.getAddress();
@@ -448,7 +450,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       // If not yet graduated, try to push tokensSold to cap
       const s = await duoLaunch.getSale(tokenAddr);
       if (!s.graduated) {
-        const maxTokens = s.totalSupply * BigInt(GraduationBps) / 10000n;
+        const maxTokens = TOTAL_SUPPLY * BigInt(GraduationBps) / 10000n;
         if (s.tokensSold >= maxTokens) {
           await expect(
             duoLaunch.connect(owner).buy(tokenAddr, 0n, { value: ethers.parseEther("1") })
@@ -573,19 +575,19 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
         await assertKUnchanged();
 
         const s2 = await duoLaunch.getSale(tokenAddr);
-        expect(await token.balanceOf(pumpAddr)).to.equal(s2.totalSupply - s2.tokensSold);
+        expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s2.tokensSold);
         if (!s2.graduated) {
-          const cap = s2.totalSupply * BigInt(GraduationBps) / 10000n;
+          const cap = TOTAL_SUPPLY * BigInt(GraduationBps) / 10000n;
           expect(s2.tokensSold).to.be.lte(cap);
         }
       }
 
       // Final state invariants
       const sFinal = await duoLaunch.getSale(tokenAddr);
-      expect(await token.balanceOf(pumpAddr)).to.equal(sFinal.totalSupply - sFinal.tokensSold);
+      expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - sFinal.tokensSold);
       await assertKUnchanged();
       if (!sFinal.graduated) {
-        const cap = sFinal.totalSupply * BigInt(GraduationBps) / 10000n;
+        const cap = TOTAL_SUPPLY * BigInt(GraduationBps) / 10000n;
         expect(sFinal.tokensSold).to.be.lte(cap);
       }
     }
@@ -679,7 +681,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       await deployAndCreateBuy(8000, ethers.parseEther("1000"), ethers.parseEther("10"));
       const pumpAddr = await duoLaunch.getAddress();
       const s = await duoLaunch.getSale(tokenAddr);
-      expect(await token.balanceOf(pumpAddr)).to.equal(s.totalSupply - s.tokensSold);
+      expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s.tokensSold);
     });
   });
 })

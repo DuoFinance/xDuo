@@ -59,7 +59,7 @@ describe("DuoLaunch — static functions", function () {
     it("returns correct initial sale info", async function () {
       const sale = await duoLaunch.getSale(tokenAddr);
       expect(sale.creator).to.equal(owner.address);
-      expect(sale.totalSupply).to.equal(TOTAL_SUPPLY);
+      // totalSupply is a fixed constant (1B), no longer in struct
       expect(sale.tokensSold).to.equal(0n);
       expect(sale.GASRaised).to.equal(0n);
       expect(sale.targetRaise).to.equal(targetRaise);

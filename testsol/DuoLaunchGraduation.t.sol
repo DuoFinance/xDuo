@@ -110,10 +110,9 @@ contract DuoLaunchGraduationTest is Test {
     TokenTemplate public token;
 
     struct SaleData {
-        address creator; uint256 totalSupply; uint256 tokensSold; uint256 GASRaised;
+        address creator; uint256 tokensSold; uint256 GASRaised;
         uint256 targetRaise; uint256 virtualGAS; uint256 virtualToken;
         uint256 graduationBps; bool graduated;
-        address pair;
     }
 
     function setUp() public {
@@ -134,9 +133,9 @@ contract DuoLaunchGraduationTest is Test {
     }
 
     function _sale() internal view returns (SaleData memory s) {
-        (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
+        (s.creator, s.tokensSold, s.GASRaised,
          s.targetRaise, s.virtualGAS, s.virtualToken,
-         s.graduationBps, s.graduated, s.pair) = pump.getSale(tokenAddr);
+         s.graduationBps, s.graduated) = pump.getSale(tokenAddr);
     }
 
     function _buy(address from, uint256 amount) internal {
@@ -144,7 +143,7 @@ contract DuoLaunchGraduationTest is Test {
     }
 
     function _maxTokens(SaleData memory s) internal pure returns (uint256) {
-        return s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
+        return Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
     }
 
     // ─── Scenario 1:  Graduation by reaching targetRaise ──────
@@ -170,7 +169,7 @@ contract DuoLaunchGraduationTest is Test {
         address t0 = pair.token0();
         (uint112 uniToken, uint112 uniGAS) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
 
-        uint256 tokensForLP = s.totalSupply - s.tokensSold;
+        uint256 tokensForLP = Constants.TOTAL_SUPPLY - s.tokensSold;
         uint256 GASForLP = s.GASRaised;
 
         assertEq(uniToken, uint112(tokensForLP), "pair token reserve mismatch");
@@ -375,7 +374,7 @@ contract DuoLaunchGraduationTest is Test {
                 (uint112 r0, uint112 r1,) = pair.getReserves();
                 address t0 = pair.token0();
                 (uint256 rToken, uint256 rGAS) = t0 == tokenAddr ? (r0, r1) : (r1, r0);
-                assertEq(rToken, s.totalSupply - s.tokensSold, "token reserves mismatch");
+                assertEq(rToken, Constants.TOTAL_SUPPLY - s.tokensSold, "token reserves mismatch");
                 assertTrue(rGAS > 0, "gas reserves should be > 0");
                 return;
             }

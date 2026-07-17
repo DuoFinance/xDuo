@@ -18,7 +18,7 @@ const ABI = [
   "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
-  "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool,address)",
+  "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
 ];
 
 let saleIface: Interface;
@@ -130,7 +130,7 @@ async function main() {
     const dbtx = await attacker.sendTransaction({ to: pumpAddr, data: bd, value: TG * 3n, gasLimit: 2_000_000 });
     const dr = await dbtx.wait();
     if (dr?.status === 0) throw new Error("REVERTED");
-    const [,,,grDb,,,,] = await P.getSale(t2);
+    const [,,grDb,,,,,] = await P.getSale(t2);
     _log(INFO, `Direct 3000 buy OK, gasRaised=${ethers.formatEther(grDb)}`);
   } catch { /* direct buy reverted (may have triggered graduation with insufficient gas) */ }
   // Test RefundGriefer helper
@@ -181,11 +181,11 @@ async function main() {
   if (ab > 0n) {
     await T4.connect(attacker).approve(pumpAddr, ab);
     await sell(attacker, "Attacker dumps all", t4, ab);
-    const [,,, g4, tr4,,,,] = await P.getSale(t4);
+    const [,, g4, tr4,,,,,] = await P.getSale(t4);
     _log(INFO, `gasRaised: ${ethers.formatEther(g4)} / ${ethers.formatEther(tr4)}`);
     if (tr4 > g4) await buy(victim, "Graduation buy", t4, BigInt(tr4) - BigInt(g4) + ethers.parseEther("10"));
     else _log(WARN, "Already at/over target");
-    const [,,,,,,,, grad4] = await P.getSale(t4);
+    const [,,,,,,, grad4] = await P.getSale(t4);
     if (grad4) { _log(PASS, "Graduated"); anyGrad = true; } else _log(FAIL, "Not graduated");
   }
 
@@ -196,12 +196,12 @@ async function main() {
   // Buy 500 ETH first, then 500 more
   await buy(victim, "Buy 500", t5, ONE * 500n);
   await buy(victim, "Buy 500 more + overpay", t5, ONE * 510n);
-  const [cr5, ts5, tsold5, gr5, tr5,,,, g5] = await P.getSale(t5);
+  const [cr5, tsold5, gr5, tr5,,,, g5] = await P.getSale(t5);
   if (g5) {
     _log(PASS, "Sale graduated");
     anyGrad = true;
   } else {
-    const maxT5 = ts5 * 8000n / 10000n;
+    const maxT5 = ethers.parseEther("1000000000") * 8000n / 10000n;
     _log(FAIL, `Not graduated (gasRaised ${ethers.formatEther(gr5)}/${ethers.formatEther(tr5)}, tokensSold ${ethers.formatEther(tsold5)}/${ethers.formatEther(maxT5)})`);
   }
   await buy(attacker, "Buy after grad", t5, ONE, 0n, g5);
@@ -228,7 +228,7 @@ async function main() {
   } catch {
     _log(PASS, "Forced ETH reverted as expected");
   }
-  const [,,,g6,,,,] = await P.getSale(t6);
+    const [,,g6,,,,,] = await P.getSale(t6);
   g6 === 0n ? _log(PASS, "Forced ETH doesn't affect gasRaised") : _log(FAIL, "gasRaised tainted");
 
   // ──── 7. CREATE AND BUY ────
@@ -239,7 +239,7 @@ async function main() {
     const cbBal = await T7cb.balanceOf(deployer.address);
     if (cbBal > 0n) {
       _log(PASS, `Tokens received atomically: ${ethers.formatEther(cbBal)}`);
-      const [,,,gCb,,,,] = await P.getSale(t7cb);
+      const [,,gCb,,,,,] = await P.getSale(t7cb);
       gCb > 0n ? _log(PASS, `gasRaised > 0 after createAndBuy: ${ethers.formatEther(gCb)}`) : _log(FAIL, "gasRaised = 0");
       await buy(victim, "Buy after createAndBuy", t7cb, ONE * 50n);
       const t7cbAttackerBal = await tok(t7cb, attacker).balanceOf(attacker.address);
@@ -266,10 +266,10 @@ async function main() {
   if (vb > 0n) {
     await T7.connect(victim).approve(pumpAddr, vb / 2n);
     await sell(victim, "Partial sell", t7, vb / 2n);
-    const [,,, g7, tr7,,,,] = await P.getSale(t7);
+    const [,, g7, tr7,,,,,] = await P.getSale(t7);
     _log(INFO, `gasRaised: ${ethers.formatEther(g7)}/${ethers.formatEther(tr7)}`);
     if (tr7 > g7) await buy(victim, "Final buy to graduate", t7, BigInt(tr7) - BigInt(g7) + ethers.parseEther("10"));
-    const [,,,,,,,, g7b] = await P.getSale(t7);
+    const [,,,,,,, g7b] = await P.getSale(t7);
     if (g7b) { _log(PASS, "Lifecycle complete"); anyGrad = true; } else _log(FAIL, "Not graduated");
     const p7 = await factoryC.getPair(t7, wgasAddr);
     p7 !== ethers.ZeroAddress ? _log(PASS, "Uniswap pair exists") : _log(FAIL, "No pair");

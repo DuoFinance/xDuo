@@ -24,7 +24,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
     /* ============ Data Structures ============ */
     struct SaleInfo {
         address creator;
-        uint256 totalSupply;     // Fixed 1B
         uint256 tokensSold;      // Tokens sold
         uint256 GASRaised;       // GAS raised
         uint256 targetRaise;     // Graduation target GAS raised
@@ -32,7 +31,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 virtualToken;    // vToken
         uint256 graduationBps;   // P（bps）
         bool    graduated;       // Whether graduated
-        address pair;            // LP burn address (address(0)) after graduation
     }
 
     /* ============ State ============ */
@@ -166,15 +164,13 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
 
         sales[token] = SaleInfo({
             creator: creator,
-            totalSupply: Constants.TOTAL_SUPPLY,
             tokensSold: 0,
             GASRaised: 0,
             targetRaise: targetRaise,
             virtualGAS: vGAS,
             virtualToken: vToken,
             graduationBps: p,
-            graduated: false,
-            pair: address(0)
+            graduated: false
         });
 
         emit SaleCreated(creator, token, name, symbol);
@@ -201,7 +197,7 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         require(tokensOut >= minTokensOut, "SLIPPAGE");
 
         // 3. Prevent buying all before graduation, cap at graduation point (P * T)
-        uint256 maxTokens = s.totalSupply * s.graduationBps / Constants.BPS_DENOMINATOR;
+        uint256 maxTokens = Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
         uint256 remainingToGrad = maxTokens - s.tokensSold;
         uint256 refund = 0;
         uint256 GASInOriginal = GASIn;
@@ -243,7 +239,7 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         SaleInfo storage s = sales[token];
         s.graduated = true;
 
-        uint256 tokensForLP = s.totalSupply - s.tokensSold;
+        uint256 tokensForLP = Constants.TOTAL_SUPPLY - s.tokensSold;
         require(tokensForLP > 0, "NO_TOKENS_FOR_LP");
         uint256 GASForLP = s.GASRaised;
         require(GASForLP > 0, "NO_GAS_FOR_LP");
@@ -255,8 +251,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
             pair = IUniswapV2Factory(uniswapFactory).getPair(token, weth);
         }
         require(pair != address(0), "PAIR_NOT_CREATED");
-
-        s.pair = pair;
 
         // 1. Wrap GAS to WGAS
         IWETH(weth).deposit{value: GASForLP}();
@@ -275,20 +269,18 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
     /// @inheritdoc IDuo
     function getSale(address token) external view returns (
         address creator,
-        uint256 totalSupply,
         uint256 tokensSold,
         uint256 GASRaised,
         uint256 targetRaise,
         uint256 virtualGAS,
         uint256 virtualToken,
         uint256 graduationBps,
-        bool    graduated,
-        address pair
+        bool    graduated
     ) {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
-        return (s.creator, s.totalSupply, s.tokensSold, s.GASRaised,
-                s.targetRaise, s.virtualGAS, s.virtualToken, s.graduationBps, s.graduated, s.pair);
+        return (s.creator, s.tokensSold, s.GASRaised,
+                s.targetRaise, s.virtualGAS, s.virtualToken, s.graduationBps, s.graduated);
     }
 
     /// @inheritdoc IDuo

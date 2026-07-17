@@ -114,7 +114,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
       const pair = UniswapV2Pair__factory.connect(pairAddr, owner);
 
       const saleGrad = await duoLaunch.getSale(tokenAddr);
-      const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
+      const tokensForLP = ethers.parseEther("1000000000") - saleGrad.tokensSold;
       const bcGASReserve = saleGrad.virtualGAS + saleGrad.GASRaised;
       const bcTokenReserve = saleGrad.virtualToken - saleGrad.tokensSold;
 
@@ -354,7 +354,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
     });
 
     it("pumps all remaining tokens and raised gas into the pair", async function () {
-      const tokensForLP = saleGrad.totalSupply - saleGrad.tokensSold;
+      const tokensForLP = ethers.parseEther("1000000000") - saleGrad.tokensSold;
       const GASForLP = saleGrad.GASRaised;
 
       expect(gradLog!.args.tokensForLP).to.equal(tokensForLP);
