@@ -78,6 +78,26 @@ const config: HardhatUserConfig = {
       "contracts/DuoBondingCurveFactory.sol": {
         version: "0.8.26",
         settings: { optimizer: { enabled: true, runs: 200 } }
+      },
+      "contracts/duoLaunch/DuoLaunch.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true }
+      },
+      "contracts/duoLaunch/IDuo.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true }
+      },
+      "contracts/duoLaunch/TokenTemplate.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true }
+      },
+      "contracts/duoLaunch/CurveMath.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true }
+      },
+      "contracts/duoLaunch/Constants.sol": {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true }
       }
     }
   },

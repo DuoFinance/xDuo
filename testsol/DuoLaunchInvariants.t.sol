@@ -171,7 +171,7 @@ contract DuoLaunchInvariants is Test {
         vm.deal(address(this), 100_000 ether);
 
         vm.prank(alice);
-        tokenAddr = pump.createSale("TestToken", "TST", P, TARGET);
+        tokenAddr = pump.createSale("TestToken", "TST", P, TARGET, "", "", "", "");
         token = TokenTemplate(tokenAddr);
     }
 
@@ -308,7 +308,7 @@ contract DuoLaunchInvariants is Test {
         uint256[4] memory bps = [uint256(6001), 6500, 8000, 9800];
         for (uint256 i = 0; i < bps.length; i++) {
             vm.prank(alice);
-            address t = pump.createSale("T", "T", bps[i], TARGET);
+            address t = pump.createSale("T", "T", bps[i], TARGET, "", "", "", "");
             for (uint256 j = 0; j < 12; j++) {
                 (,uint256 tokensSold,,,,,, bool graduated) = pump.getSale(t);
                 if (graduated) break;
@@ -508,7 +508,7 @@ contract DuoLaunchInvariants is Test {
     function test_CreateAndBuyInvariants() public {
         vm.deal(bob, 100 ether);
         vm.prank(bob);
-        (address t,) = pump.createAndBuy{value: 10 ether}("CB", "CB", P, TARGET, 0);
+        (address t,) = pump.createAndBuy{value: 10 ether}("CB", "CB", P, TARGET, 0, "", "", "", "");
 
         TokenTemplate tkn = TokenTemplate(t);
         (,uint256 tokensSold, uint256 GASRaised,,uint256 vg, uint256 vt,,) = pump.getSale(t);
@@ -531,15 +531,15 @@ contract DuoLaunchInvariants is Test {
 
     function test_InvalidGraduationBps_Reverts() public {
         vm.expectRevert("INVALID_GRADUATION_MIN");
-        pump.createSale("X", "X", 5999, TARGET);
+        pump.createSale("X", "X", 5999, TARGET, "", "", "", "");
 
         vm.expectRevert("INVALID_GRADUATION_MAX");
-        pump.createSale("X", "X", 9901, TARGET);
+        pump.createSale("X", "X", 9901, TARGET, "", "", "", "");
     }
 
     function test_InvalidTargetRaise_Reverts() public {
         vm.expectRevert("INVALID_TARGET_RAISE");
-        pump.createSale("X", "X", 8000, 0);
+        pump.createSale("X", "X", 8000, 0, "", "", "", "");
     }
 
     function test_ZeroGASBuy_Reverts() public {
@@ -668,7 +668,7 @@ contract DuoLaunchInvariants is Test {
 
     function test_CreateAndBuy_ZeroGAS_Reverts() public {
         vm.expectRevert("ZERO_GAS");
-        pump.createAndBuy{value: 0}("X", "X", P, TARGET, 0);
+        pump.createAndBuy{value: 0}("X", "X", P, TARGET, 0, "", "", "", "");
     }
 
     // ─── view functions after graduation: SALE_GRADUATED ─────
@@ -837,24 +837,24 @@ contract DuoLaunchInvariants is Test {
 
     function test_CreateSale_GraduationBpsBounds() public {
         // Valid minimum: 6000
-        address t1 = pump.createSale("Min", "MIN", 6000, 1000 ether);
+        address t1 = pump.createSale("Min", "MIN", 6000, 1000 ether, "", "", "", "");
         assertTrue(t1 != address(0));
 
         // Valid maximum: 9900
-        address t2 = pump.createSale("Max", "MAX", 9900, 1000 ether);
+        address t2 = pump.createSale("Max", "MAX", 9900, 1000 ether, "", "", "", "");
         assertTrue(t2 != address(0));
 
         // Below MIN_GRADUATION_BPS
         vm.expectRevert("INVALID_GRADUATION_MIN");
-        pump.createSale("Low", "LOW", 5999, 1000 ether);
+        pump.createSale("Low", "LOW", 5999, 1000 ether, "", "", "", "");
 
         // Above MAX_GRADUATION_BPS
         vm.expectRevert("INVALID_GRADUATION_MAX");
-        pump.createSale("High", "HIGH", 9901, 1000 ether);
+        pump.createSale("High", "HIGH", 9901, 1000 ether, "", "", "", "");
 
         // P=5000 triggers INVALID_GRADUATION_MIN check first (MIN=6000)
         vm.expectRevert("INVALID_GRADUATION_MIN");
-        pump.createSale("Half", "HALF", 5000, 1000 ether);
+        pump.createSale("Half", "HALF", 5000, 1000 ether, "", "", "", "");
     }
 
     // ══════════════════════════════════════════════════════════
@@ -958,12 +958,12 @@ contract DuoLaunchInvariants is Test {
     function test_Event_SaleCreated() public {
         vm.recordLogs();
         vm.prank(alice);
-        address t = pump.createSale("EventTest", "EVT", P, TARGET);
+        address t = pump.createSale("EventTest", "EVT", P, TARGET, "", "", "", "");
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool found;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("SaleCreated(address,address,string,string)")) {
+            if (logs[i].topics[0] == keccak256("SaleCreated(address,address,string,string,string,string,string,string)")) {
                 address creator = address(uint160(uint256(logs[i].topics[1])));
                 address token_ = address(uint160(uint256(logs[i].topics[2])));
                 assertEq(creator, alice, "event creator");
@@ -1074,7 +1074,7 @@ contract DuoLaunchInvariants is Test {
         // Create a new sale with high TARGET so 10 ETH doesn't graduate
         vm.deal(bob, 100 ether);
         vm.prank(bob);
-        (address t,) = pump.createAndBuy{value: 10 ether}("CABSell", "CBS", P, 1000 ether, 0);
+        (address t,) = pump.createAndBuy{value: 10 ether}("CABSell", "CBS", P, 1000 ether, 0, "", "", "", "");
         TokenTemplate tk = TokenTemplate(t);
 
         // Verify state after createAndBuy
@@ -1106,7 +1106,7 @@ contract DuoLaunchInvariants is Test {
         vm.deal(bob,   100_000 ether);
 
         vm.prank(alice);
-        address t = pump.createSale("FuzzCont", "FZC", 8000, 10_000 ether);
+        address t = pump.createSale("FuzzCont", "FZC", 8000, 10_000 ether, "", "", "", "");
         TokenTemplate tk = TokenTemplate(t);
 
         uint256 k0;
@@ -1162,5 +1162,3 @@ contract DuoLaunchInvariants is Test {
     }
 }
 
-
-//opencode -s ses_09701f0acffetR47eauHFQKnty

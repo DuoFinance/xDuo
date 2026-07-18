@@ -60,9 +60,18 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         string calldata name,
         string calldata symbol,
         uint256 graduationBps,
-        uint256 targetRaise
+        uint256 targetRaise,
+        string calldata discord,
+        string calldata x,
+        string calldata telegram,
+        string calldata repoUrl
     ) external returns (address token) {
+        require(bytes(discord).length <= 128, "discord too long");
+        require(bytes(x).length <= 128, "x too long");
+        require(bytes(telegram).length <= 128, "telegram too long");
+        require(bytes(repoUrl).length <= 256, "repoUrl too long");
         token = _createSale(name, symbol, graduationBps, targetRaise, msg.sender);
+        emit SaleCreated(msg.sender, token, name, symbol, discord, x, telegram, repoUrl);
     }
 
     /* ============ Buy ============ */
@@ -86,10 +95,19 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         string calldata symbol,
         uint256 graduationBps,
         uint256 targetRaise,
-        uint256 minTokensOut
+        uint256 minTokensOut,
+        string calldata discord,
+        string calldata x,
+        string calldata telegram,
+        string calldata repoUrl
     ) external payable nonReentrant returns (address token, uint256 tokensOut) {
         require(msg.value > 0, "ZERO_GAS");
+        require(bytes(discord).length <= 128, "discord too long");
+        require(bytes(x).length <= 128, "x too long");
+        require(bytes(telegram).length <= 128, "telegram too long");
+        require(bytes(repoUrl).length <= 256, "repoUrl too long");
         token = _createSale(name, symbol, graduationBps, targetRaise, msg.sender);
+        emit SaleCreated(msg.sender, token, name, symbol, discord, x, telegram, repoUrl);
         tokensOut = _buy(token, msg.value, minTokensOut, msg.sender);
     }
 
@@ -172,8 +190,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
             graduationBps: p,
             graduated: false
         });
-
-        emit SaleCreated(creator, token, name, symbol);
     }
 
     /* ============ Internal: Buy ============ */

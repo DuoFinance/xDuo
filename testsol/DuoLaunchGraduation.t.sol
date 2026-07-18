@@ -150,7 +150,7 @@ contract DuoLaunchGraduationTest is Test {
 
     function test_Graduation_ByTargetRaise() public {
         vm.prank(alice);
-        tokenAddr = pump.createSale("GradTest", "GRD", P, SMALL_TARGET);
+        tokenAddr = pump.createSale("GradTest", "GRD", P, SMALL_TARGET, "", "", "", "");
 
         // Buy until graduation
         _buy(alice, SMALL_TARGET);
@@ -191,7 +191,7 @@ contract DuoLaunchGraduationTest is Test {
 
     function test_Graduation_ByTokenCap() public {
         vm.prank(alice);
-        tokenAddr = pump.createSale("CapTest", "CAP", P, TARGET);
+        tokenAddr = pump.createSale("CapTest", "CAP", P, TARGET, "", "", "", "");
 
         SaleData memory s0 = _sale();
         uint256 maxT = _maxTokens(s0);
@@ -215,7 +215,7 @@ contract DuoLaunchGraduationTest is Test {
 
     function test_Graduation_WithRefund() public {
         vm.prank(alice);
-        tokenAddr = pump.createSale("Refund", "REF", P, SMALL_TARGET);
+        tokenAddr = pump.createSale("Refund", "REF", P, SMALL_TARGET, "", "", "", "");
 
         SaleData memory s0 = _sale();
         uint256 maxT = _maxTokens(s0);
@@ -240,7 +240,7 @@ contract DuoLaunchGraduationTest is Test {
 
     function test_Graduation_PreExistingPair() public {
         vm.prank(alice);
-        tokenAddr = pump.createSale("PrePair", "PRE", P, SMALL_TARGET);
+        tokenAddr = pump.createSale("PrePair", "PRE", P, SMALL_TARGET, "", "", "", "");
         token = TokenTemplate(tokenAddr);
 
         // Pre-create the pair and add minimal liquidity
@@ -270,7 +270,7 @@ contract DuoLaunchGraduationTest is Test {
 
     function test_Graduation_PriceContinuity() public {
         vm.prank(alice);
-        tokenAddr = pump.createSale("Price", "PRC", P, SMALL_TARGET);
+        tokenAddr = pump.createSale("Price", "PRC", P, SMALL_TARGET, "", "", "", "");
 
         // Buy some tokens before graduation
         _buy(alice, 0.5 ether);
@@ -306,7 +306,7 @@ contract DuoLaunchGraduationTest is Test {
     function test_Graduation_MinimumP() public {
         uint256 minP = 6001;
         vm.prank(alice);
-        tokenAddr = pump.createSale("MinP", "MINP", minP, SMALL_TARGET);
+        tokenAddr = pump.createSale("MinP", "MINP", minP, SMALL_TARGET, "", "", "", "");
 
         _buy(alice, SMALL_TARGET);
 
@@ -321,7 +321,7 @@ contract DuoLaunchGraduationTest is Test {
     function test_Graduation_MaximumP() public {
         uint256 maxP = 9900;
         vm.prank(alice);
-        tokenAddr = pump.createSale("MaxP", "MAXP", maxP, SMALL_TARGET);
+        tokenAddr = pump.createSale("MaxP", "MAXP", maxP, SMALL_TARGET, "", "", "", "");
 
         _buy(alice, SMALL_TARGET);
 
@@ -334,7 +334,7 @@ contract DuoLaunchGraduationTest is Test {
     function test_Graduation_CreateAndBuy() public {
         vm.prank(alice);
         (address t,) = pump.createAndBuy{value: SMALL_TARGET}(
-            "CBGrad", "CBG", P, SMALL_TARGET, 0
+            "CBGrad", "CBG", P, SMALL_TARGET, 0, "", "", "", ""
         );
         tokenAddr = t;
         token = TokenTemplate(tokenAddr);
@@ -353,7 +353,7 @@ contract DuoLaunchGraduationTest is Test {
         vm.assume(GASAmount > 0.001 ether && GASAmount <= 10 ether);
 
         vm.prank(alice);
-        tokenAddr = pump.createSale("Fuzz", "FUZ", P, TARGET);
+        tokenAddr = pump.createSale("Fuzz", "FUZ", P, TARGET, "", "", "", "");
         token = TokenTemplate(tokenAddr);
 
         // Keep buying until graduation
@@ -393,7 +393,7 @@ contract DuoLaunchGraduationTest is Test {
         vm.assume(targetRaise_ >= 0.01 ether && targetRaise_ <= 10_000 ether);
 
         vm.prank(alice);
-        tokenAddr = pump.createSale("FuzzP", "FZP", P_, targetRaise_);
+        tokenAddr = pump.createSale("FuzzP", "FZP", P_, targetRaise_, "", "", "", "");
 
         _buy(alice, targetRaise_);
 
