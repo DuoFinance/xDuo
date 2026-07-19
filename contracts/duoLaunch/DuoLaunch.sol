@@ -164,7 +164,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         token = address(new TokenTemplate(
             name,
             symbol,
-            Constants.DECIMALS,
             Constants.TOTAL_SUPPLY,
             address(this)
         ));

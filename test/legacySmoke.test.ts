@@ -303,7 +303,7 @@ describe("Uni2 legacy NeoX smoke", function () {
 
     // 3. Create sale with P = 80%
     const graduationBps = 8000;
-    const createTx = await duoLaunch.createSale("DuoLaunch Token", "PUMP", graduationBps, ethers.parseEther("1000"));
+    const createTx = await duoLaunch.createSale("DuoLaunch Token", "PUMP", graduationBps, ethers.parseEther("1000"), "", "", "", "");
     const createReceipt = await createTx.wait();
     const createLog = createReceipt!.logs
       .map((log: any) => { try { return duoLaunch.interface.parseLog(log); } catch { return null; } })

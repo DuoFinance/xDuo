@@ -48,7 +48,7 @@ describe("DuoLaunch — static functions", function () {
     const targetRaise = ethers.parseEther("1000");
 
     beforeEach(async function () {
-      const tx = await duoLaunch.createSale("Test", "TST", graduationBps, targetRaise);
+      const tx = await duoLaunch.createSale("Test", "TST", graduationBps, targetRaise, "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -97,7 +97,7 @@ describe("DuoLaunch — static functions", function () {
     let tokenAddr: string;
 
     beforeEach(async function () {
-      const tx = await duoLaunch.createSale("Test", "TST", 8000n, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("Test", "TST", 8000n, ethers.parseEther("1000"), "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -140,7 +140,7 @@ describe("DuoLaunch — static functions", function () {
 
     it("reverts after graduation", async function () {
       const targetRaise = ethers.parseEther("10");
-      const tx = await duoLaunch.createSale("Test", "TST", 8000n, targetRaise);
+      const tx = await duoLaunch.createSale("Test", "TST", 8000n, targetRaise, "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -156,7 +156,7 @@ describe("DuoLaunch — static functions", function () {
     let tokenAddr: string;
 
     beforeEach(async function () {
-      const tx = await duoLaunch.createSale("Test", "TST", 8000n, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("Test", "TST", 8000n, ethers.parseEther("1000"), "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -198,7 +198,7 @@ describe("DuoLaunch — static functions", function () {
 
     it("reverts after graduation", async function () {
       const targetRaise = ethers.parseEther("10");
-      const tx = await duoLaunch.createSale("Test", "TST", 8000n, targetRaise);
+      const tx = await duoLaunch.createSale("Test", "TST", 8000n, targetRaise, "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -216,7 +216,7 @@ describe("DuoLaunch — static functions", function () {
     let tokenAddr: string;
 
     beforeEach(async function () {
-      const tx = await duoLaunch.createSale("Test", "TST", 8000n, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("Test", "TST", 8000n, ethers.parseEther("1000"), "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -265,7 +265,7 @@ describe("DuoLaunch — static functions", function () {
 
     it("reverts after graduation", async function () {
       const targetRaise = ethers.parseEther("10");
-      const tx = await duoLaunch.createSale("Test", "TST", 8000n, targetRaise);
+      const tx = await duoLaunch.createSale("Test", "TST", 8000n, targetRaise, "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -285,7 +285,7 @@ describe("DuoLaunch — static functions", function () {
 
     beforeEach(async function () {
       buyValue = ethers.parseEther("1");
-      const tx = await duoLaunch.createAndBuy("CB", "CB", 8000n, ethers.parseEther("1000"), 0n, {
+      const tx = await duoLaunch.createAndBuy("CB", "CB", 8000n, ethers.parseEther("1000"), 0n, "", "", "", "", {
         value: buyValue,
       });
       const receipt = await tx.wait();
@@ -311,14 +311,14 @@ describe("DuoLaunch — static functions", function () {
 
     it("reverts with zero value", async function () {
       await expect(
-        duoLaunch.createAndBuy("Zero", "ZRO", 8000n, ethers.parseEther("1000"), 0n, { value: 0n })
+        duoLaunch.createAndBuy("Zero", "ZRO", 8000n, ethers.parseEther("1000"), 0n, "", "", "", "", { value: 0n })
       ).to.be.revertedWith("ZERO_GAS");
     });
 
     it("reverts with excessive slippage", async function () {
       const maxOut = ethers.parseEther("999999999");
       await expect(
-        duoLaunch.createAndBuy("Slippage", "SLP", 8000n, ethers.parseEther("1000"), maxOut, {
+        duoLaunch.createAndBuy("Slippage", "SLP", 8000n, ethers.parseEther("1000"), maxOut, "", "", "", "", {
           value: ethers.parseEther("0.001"),
         })
       ).to.be.revertedWith("SLIPPAGE");
@@ -338,7 +338,7 @@ describe("DuoLaunch — static functions", function () {
 
     it("triggers graduation when buying past targetRaise", async function () {
       const targetRaise = ethers.parseEther("5");
-      const tx = await duoLaunch.createAndBuy("Grad", "GRD", 8000n, targetRaise, 0n, {
+      const tx = await duoLaunch.createAndBuy("Grad", "GRD", 8000n, targetRaise, 0n, "", "", "", "", {
         value: targetRaise,
       });
       const receipt = await tx.wait();
@@ -358,7 +358,7 @@ describe("DuoLaunch — static functions", function () {
       const overpay = targetRaise + ethers.parseEther("2");
       const balBefore = await ethers.provider.getBalance(owner.address);
 
-      const tx = await duoLaunch.createAndBuy("Overpay", "OVR", 8000n, targetRaise, 0n, {
+      const tx = await duoLaunch.createAndBuy("Overpay", "OVR", 8000n, targetRaise, 0n, "", "", "", "", {
         value: overpay,
       });
       const receipt = await tx.wait();
@@ -372,7 +372,7 @@ describe("DuoLaunch — static functions", function () {
 
     it("reverts createAndBuy with invalid graduation BPS", async function () {
       await expect(
-        duoLaunch.createAndBuy("Bad", "BAD", 5000n, ethers.parseEther("1000"), 0n, { value: ethers.parseEther("1") })
+        duoLaunch.createAndBuy("Bad", "BAD", 5000n, ethers.parseEther("1000"), 0n, "", "", "", "", { value: ethers.parseEther("1") })
       ).to.be.revertedWith("INVALID_GRADUATION_MIN");
     });
   });

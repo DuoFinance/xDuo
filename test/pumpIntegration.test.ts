@@ -52,7 +52,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
   }
 
   async function createSale() {
-    const tx = await duoLaunch.createSale("DuoLaunch Token", "PUMP", GRADUATION_BPS, ethers.parseEther("1000"));
+    const tx = await duoLaunch.createSale("DuoLaunch Token", "PUMP", GRADUATION_BPS, ethers.parseEther("1000"), "", "", "", "");
     const receipt = await tx.wait();
     const log = receipt!.logs
       .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -300,7 +300,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
     it("should work with minimum graduation ratio (P=5001)", async function () {
       await deployInfra();
       const minBps = 6001;
-      const tx = await duoLaunch.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"), "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -411,7 +411,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
       const gradBps = 8000n;
       const maxTokens = totalSupply * gradBps / 10000n;
 
-      const tx = await duoLaunch.createSale("CapGrad", "CAP", gradBps, ethers.parseEther("1000"));
+      const tx = await duoLaunch.createSale("CapGrad", "CAP", gradBps, ethers.parseEther("1000"), "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -461,7 +461,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
 
     it("createSale reverts with targetRaise = 0", async function () {
       await expect(
-        duoLaunch.createSale("Zero", "ZRO", 8000, 0n)
+        duoLaunch.createSale("Zero", "ZRO", 8000, 0n, "", "", "", "")
       ).to.be.reverted;
     });
   });
@@ -472,7 +472,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
 
     beforeEach(async function () {
       await deployInfra();
-      const tx = await duoLaunch.createAndBuy("CBToken", "CBT", 8000n, ethers.parseEther("1000"), 0n, {
+      const tx = await duoLaunch.createAndBuy("CBToken", "CBT", 8000n, ethers.parseEther("1000"), 0n, "", "", "", "", {
         value: CB_BUY,
       });
       const receipt = await tx.wait();
@@ -568,7 +568,7 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
       const overpay = targetRaise + ethers.parseEther("5");
       const balBefore = await ethers.provider.getBalance(owner.address);
 
-      const tx = await duoLaunch.createAndBuy("Over", "OVR", 8000n, targetRaise, 0n, { value: overpay });
+      const tx = await duoLaunch.createAndBuy("Over", "OVR", 8000n, targetRaise, 0n, "", "", "", "", { value: overpay });
       const rc = await tx.wait();
       const gasCost = rc!.gasUsed * rc!.gasPrice;
       const balAfter = await ethers.provider.getBalance(owner.address);

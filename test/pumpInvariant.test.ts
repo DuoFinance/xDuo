@@ -39,7 +39,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
     duoLaunch = await new DuoLaunch__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
     await duoLaunch.waitForDeployment();
 
-    const tx = await duoLaunch.createSale("T", "T", graduationBps, ethers.parseEther("1000"));
+    const tx = await duoLaunch.createSale("T", "T", graduationBps, ethers.parseEther("1000"), "", "", "", "");
     const rc = await tx.wait();
     const log = rc!.logs
       .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -305,14 +305,14 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       const [o] = await ethers.getSigners();
       const p = await new DuoLaunch__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 5999, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MIN");
+      await expect(p.createSale("X", "X", 5999, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MIN");
     });
 
     it("reverts P > 9900", async function () {
       const [o] = await ethers.getSigners();
       const p = await new DuoLaunch__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 9901, ethers.parseEther("1000"))).to.be.revertedWith("INVALID_GRADUATION_MAX");
+      await expect(p.createSale("X", "X", 9901, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MAX");
     });
 
     it("accepts P = 6001 (minimum valid)", async function () {
@@ -622,7 +622,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       duoLaunch = await new DuoLaunch__factory(owner).deploy(await factory.getAddress(), await weth.getAddress());
       await duoLaunch.waitForDeployment();
 
-      const tx = await duoLaunch.createAndBuy("CB", "CB", bps, targetRaise, 0n, { value: buyValue });
+      const tx = await duoLaunch.createAndBuy("CB", "CB", bps, targetRaise, 0n, "", "", "", "", { value: buyValue });
       const rc = await tx.wait();
       const log = rc!.logs
         .map((l: any) => { try { return duoLaunch.interface.parseLog(l); } catch { return null; } })
@@ -665,13 +665,13 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       await deployAndCreateBuy(8000, ethers.parseEther("1000"), ethers.parseEther("1"));
       // Create a second sale attempt with zero value should revert
       await expect(
-        duoLaunch.createAndBuy("Zero", "ZRO", 8000, ethers.parseEther("1000"), 0n, { value: 0n })
+        duoLaunch.createAndBuy("Zero", "ZRO", 8000, ethers.parseEther("1000"), 0n, "", "", "", "", { value: 0n })
       ).to.be.revertedWith("ZERO_GAS");
     });
 
     it("reverts createAndBuy with excessive slippage", async function () {
       await expect(
-        duoLaunch.createAndBuy("Slip", "SLP", 8000, ethers.parseEther("1000"), ethers.parseEther("1000000"), {
+        duoLaunch.createAndBuy("Slip", "SLP", 8000, ethers.parseEther("1000"), ethers.parseEther("1000000"), "", "", "", "", {
           value: ethers.parseEther("0.001"),
         })
       ).to.be.revertedWith("SLIPPAGE");
