@@ -14,8 +14,8 @@ const _log = (p: string, m: string) => console.log(`  ${p} ${m}`);
 let pumpAddr: string, routerAddr: string, wgasAddr: string, factoryAddr: string;
 
 const ABI = [
-  "function createSale(string,string,uint256,uint256) returns (address)",
-  "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
+  "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
+  "function createAndBuy(string,string,uint256,uint256,uint256,string,string,string,string) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
@@ -25,7 +25,7 @@ let saleIface: Interface;
 
 async function sale(contract: any, n: string, s: string, b = 8000, t?: bigint): Promise<string> {
   const target = t ?? ethers.parseEther("1000");
-  const tx = await contract.createSale(n, s, b, target);
+  const tx = await contract.createSale(n, s, b, target, "", "", "", "");
   const rc = await tx.wait();
   for (const l of rc!.logs) {
     if (l.address.toLowerCase() !== pumpAddr.toLowerCase()) continue;
@@ -38,7 +38,7 @@ async function sale(contract: any, n: string, s: string, b = 8000, t?: bigint): 
 async function saleCreateAndBuy(contract: any, n: string, s: string, b = 8000, t?: bigint, v?: bigint): Promise<string> {
   const target = t ?? ethers.parseEther("1000");
   const value = v ?? ethers.parseEther("1");
-  const tx = await contract.createAndBuy(n, s, b, target, 0n, { value });
+  const tx = await contract.createAndBuy(n, s, b, target, 0n, "", "", "", "", { value });
   const rc = await tx.wait();
   for (const l of rc!.logs) {
     if (l.address.toLowerCase() !== pumpAddr.toLowerCase()) continue;
@@ -193,9 +193,9 @@ async function main() {
   console.log(`\n${"=".repeat(60)}\n  5. POST-GRAD ACCESS\n${"=".repeat(60)}`);
   const t5 = await sale(P, "PostGrad", "PST", 8000, ethers.parseEther("1200"));
   // Split graduation into multiple buys so we don't hit the cap + grad in one tx
-  // Buy 500 ETH first, then 500 more
+  // Buy 500 ETH first, then remaining 700 to graduate
   await buy(victim, "Buy 500", t5, ONE * 500n);
-  await buy(victim, "Buy 500 more + overpay", t5, ONE * 510n);
+  await buy(victim, "Buy remaining 700 + overpay", t5, ONE * 710n);
   const [cr5, tsold5, gr5, tr5,,,, g5] = await P.getSale(t5);
   if (g5) {
     _log(PASS, "Sale graduated");

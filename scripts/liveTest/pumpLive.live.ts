@@ -11,15 +11,15 @@ const PAIR_IFACE = "contracts/interfaces/IUniswapV2Pair.sol:IUniswapV2Pair";
 const PUMP_ABI = [
   "function uniswapFactory() view returns (address)",
   "function weth() view returns (address)",
-  "function createSale(string,string,uint256,uint256) returns (address)",
-  "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
+  "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
+  "function createAndBuy(string,string,uint256,uint256,uint256,string,string,string,string) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address creator, uint256 tokensSold, uint256 GASRaised, uint256 targetRaise, uint256 virtualGAS, uint256 virtualToken, uint256 graduationBps, bool graduated)",
   "function getCurrentPrice(address) view returns (uint256)",
   "function getTokensForGAS(address,uint256) view returns (uint256)",
   "function getGASForTokens(address,uint256) view returns (uint256)",
-  "event SaleCreated(address indexed creator, address indexed token, string name, string symbol)",
+  "event SaleCreated(address indexed creator, address indexed token, string name, string symbol, string discord, string x, string telegram, string repoUrl)",
   "event TokensPurchased(address indexed buyer, address indexed token, uint256 GASIn, uint256 tokensOut)",
   "event TokensSold(address indexed seller, address indexed token, uint256 tokensIn, uint256 GASOut)",
   "event SaleGraduated(address indexed token, address pair, uint256 tokensForLP, uint256 GASForLP)",
@@ -87,15 +87,15 @@ async function main() {
   }
 
   const pumpAddr = await pump.getAddress();
-  const createTx = await pump.createSale("Live Test", "LVT", BPS, TARGET);
+  const createTx = await pump.createSale("Live Test", "LVT", BPS, TARGET, "", "", "", "");
   const createRc = await createTx.wait();
   if (!createRc || createRc.status === 0) {
-    try { await pump.createSale.staticCall("Live Test", "LVT", BPS, TARGET); } catch (simErr: any) {
+    try { await pump.createSale.staticCall("Live Test", "LVT", BPS, TARGET, "", "", "", ""); } catch (simErr: any) {
       throw new Error(`createSale reverted: ${simErr.reason || simErr.message}`);
     }
     throw new Error("createSale reverted (status=0 but staticCall passed)");
   }
-  const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
+  const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string,string,string,string,string)");
   const saleLog = createRc.logs.find((l: any) =>
     l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
   );
@@ -268,14 +268,14 @@ async function main() {
     const cbBps = 7500;
     const cbTarget = ethers.parseEther("0.002");
     const cbBuyAmt = ethers.parseEther("0.001");
-    const cbTx = await pump.connect(deployer).createAndBuy(cbName, cbSymbol, cbBps, cbTarget, 0n, {
+    const cbTx = await pump.connect(deployer).createAndBuy(cbName, cbSymbol, cbBps, cbTarget, 0n, "", "", "", "", {
       value: cbBuyAmt,
     });
     const cbRc = await cbTx.wait();
     assert.ok(cbRc && cbRc.status === 1, "createAndBuy failed");
     // Extract token from SaleCreated log
     const cbAddr = await pump.getAddress();
-    const cbTopic = ethers.id("SaleCreated(address,address,string,string)");
+    const cbTopic = ethers.id("SaleCreated(address,address,string,string,string,string,string,string)");
     const cbLog = cbRc.logs.find((l: any) =>
       l.topics[0] === cbTopic && l.address.toLowerCase() === cbAddr.toLowerCase()
     );

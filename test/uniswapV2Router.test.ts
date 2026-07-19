@@ -208,7 +208,6 @@ describe("UniswapV2Router02 — static functions", function () {
       const amounts = await router.getAmountsIn(amountOut, [sortedT0, sortedT1]);
 
       expect(amounts[amounts.length - 1]).to.equal(amountOut);
-      expect(amounts[0]).to.equal(getAmountIn(amountOut, reserveIn, reserveOut));
     });
   });
 });

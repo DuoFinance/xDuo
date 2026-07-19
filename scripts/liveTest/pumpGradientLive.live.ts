@@ -11,8 +11,8 @@ const PAIR_IFACE    = "contracts/interfaces/IUniswapV2Pair.sol:IUniswapV2Pair";
 const PUMP_ABI = [
   "function uniswapFactory() view returns (address)",
   "function weth() view returns (address)",
-  "function createSale(string,string,uint256,uint256) returns (address)",
-  "function createAndBuy(string,string,uint256,uint256,uint256) payable returns (address token, uint256 tokensOut)",
+  "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
+  "function createAndBuy(string,string,uint256,uint256,uint256,string,string,string,string) payable returns (address token, uint256 tokensOut)",
   "function buy(address,uint256) payable returns (uint256)",
   "function sell(address,uint256,uint256) returns (uint256)",
   "function getSale(address) view returns (address creator, uint256 tokensSold, uint256 GASRaised, uint256 targetRaise, uint256 virtualGAS, uint256 virtualToken, uint256 graduationBps, bool graduated)",
@@ -76,13 +76,13 @@ async function runRound(
     const buyValue = ethers.parseEther(initialBuyEth.toString());
     let gasEst: bigint;
     try {
-      gasEst = await pump.createAndBuy.estimateGas(name, symbol, bps, targetRaise, 0n, { value: buyValue });
+      gasEst = await pump.createAndBuy.estimateGas(name, symbol, bps, targetRaise, 0n, "", "", "", "", { value: buyValue });
     } catch {
       console.log("   ⚠️  createAndBuy not supported — redeploy Pump");
       throw new Error("SKIP_CREATE_AND_BUY");
     }
     console.log(`   gasEst: ${gasEst}`);
-    const tx1 = await pump.createAndBuy(name, symbol, bps, targetRaise, 0n, {
+    const tx1 = await pump.createAndBuy(name, symbol, bps, targetRaise, 0n, "", "", "", "", {
       value: buyValue,
       gasLimit: gasEst * 120n / 100n,
     });
@@ -90,7 +90,7 @@ async function runRound(
     if (!rc1 || rc1.status === 0) {
       throw new Error(`createAndBuy reverted (status=0)`);
     }
-    const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
+    const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string,string,string,string,string)");
     const saleLog = rc1.logs.find((l: any) =>
       l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
     );
@@ -99,22 +99,22 @@ async function runRound(
     assert.ok(parsedSale, "parseLog failed for SaleCreated in createAndBuy");
     tokenAddr = parsedSale.args.token;
   } else {
-    const gasEst = await pump.createSale.estimateGas(name, symbol, bps, targetRaise);
+    const gasEst = await pump.createSale.estimateGas(name, symbol, bps, targetRaise, "", "", "", "");
     console.log(`   gasEst: ${gasEst}`);
-    const tx1 = await pump.createSale(name, symbol, bps, targetRaise, {
+    const tx1 = await pump.createSale(name, symbol, bps, targetRaise, "", "", "", "", {
       gasLimit: gasEst * 120n / 100n,
     });
     const rc1 = await tx1.wait();
     if (!rc1 || rc1.status === 0) {
       let reason = `gasUsed=${rc1?.gasUsed}, gasEst=${gasEst}`;
       try {
-        await pump.createSale.staticCall(name, symbol, bps, targetRaise);
+        await pump.createSale.staticCall(name, symbol, bps, targetRaise, "", "", "", "");
       } catch (callErr: any) {
         reason += `, revert=${callErr.reason || callErr.message}`;
       }
       throw new Error(`createSale reverted (${reason})`);
     }
-    const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string)");
+    const SALE_CREATED_TOPIC = ethers.id("SaleCreated(address,address,string,string,string,string,string,string)");
     const saleLog = rc1.logs.find((l: any) =>
       l.topics[0] === SALE_CREATED_TOPIC && l.address.toLowerCase() === pumpAddr.toLowerCase()
     );
