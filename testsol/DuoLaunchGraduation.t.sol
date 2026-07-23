@@ -146,17 +146,42 @@ contract DuoLaunchGraduationTest is Test {
         return Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
     }
 
-    // ─── Scenario 1:  Graduation by reaching targetRaise ──────
+    function _buyToGraduation(address from) internal {
+        SaleData memory s = _sale();
+        uint256 maxT = _maxTokens(s);
+        uint256 remaining = maxT - s.tokensSold;
+        uint256 GASIn = CurveMath.getAmountIn(
+            s.virtualGAS + s.GASRaised,
+            s.virtualToken - s.tokensSold,
+            remaining
+        );
+        _buy(from, GASIn);
+    }
 
-    function test_Graduation_ByTargetRaise() public {
+    // ─── Scenario 1: targetRaise alone does not graduate ──────
+
+    function test_Graduation_OnlyAfterTokenCap() public {
+        // 999 ether is divisible by three. At P=80%, the virtual-reserve
+        // rounding leaves this buy one token-wei below maxTokens while the
+        // accounting targetRaise is already reached.
+        uint256 target = 999 ether;
         vm.prank(alice);
-        tokenAddr = pump.createSale("GradTest", "GRD", P, SMALL_TARGET, "", "", "", "");
+        tokenAddr = pump.createSale("GradTest", "GRD", P, target, "", "", "", "");
 
-        // Buy until graduation
-        _buy(alice, SMALL_TARGET);
+        _buy(alice, target);
+
+        SaleData memory beforeCap = _sale();
+        uint256 maxT = _maxTokens(beforeCap);
+        assertEq(beforeCap.GASRaised, target, "target raise should be reached");
+        assertLt(beforeCap.tokensSold, maxT, "token cap should not yet be reached");
+        assertFalse(beforeCap.graduated, "target raise alone must not graduate");
+
+        // One more wei reaches the remaining token allocation and graduates.
+        _buy(alice, 1);
 
         SaleData memory s = _sale();
-        assertTrue(s.graduated, "should graduate when GASRaised >= targetRaise");
+        assertTrue(s.graduated, "should graduate at the token cap");
+        assertEq(s.tokensSold, maxT, "must sell exactly maxTokens");
 
         // Verify pair created
         address pairAddr = factory.getPair(tokenAddr, WGAS);
@@ -255,7 +280,7 @@ contract DuoLaunchGraduationTest is Test {
         token.transfer(pairAddr, someTokens);
 
         // Graduation should still succeed (no DoS via pre-existing pair)
-        _buy(alice, SMALL_TARGET);
+        _buyToGraduation(alice);
 
         SaleData memory s = _sale();
         assertTrue(s.graduated, "should graduate despite pre-existing pair");
@@ -276,7 +301,7 @@ contract DuoLaunchGraduationTest is Test {
         _buy(alice, 0.5 ether);
 
         // Graduate
-        _buy(alice, SMALL_TARGET);
+        _buyToGraduation(alice);
 
         SaleData memory s = _sale();
         assertTrue(s.graduated, "should graduate");
@@ -308,7 +333,7 @@ contract DuoLaunchGraduationTest is Test {
         vm.prank(alice);
         tokenAddr = pump.createSale("MinP", "MINP", minP, SMALL_TARGET, "", "", "", "");
 
-        _buy(alice, SMALL_TARGET);
+        _buyToGraduation(alice);
 
         SaleData memory s = _sale();
         assertTrue(s.graduated, "P=6001 should graduate");
@@ -323,7 +348,7 @@ contract DuoLaunchGraduationTest is Test {
         vm.prank(alice);
         tokenAddr = pump.createSale("MaxP", "MAXP", maxP, SMALL_TARGET, "", "", "", "");
 
-        _buy(alice, SMALL_TARGET);
+        _buyToGraduation(alice);
 
         SaleData memory s = _sale();
         assertTrue(s.graduated, "P=9900 should graduate");
@@ -340,7 +365,7 @@ contract DuoLaunchGraduationTest is Test {
         token = TokenTemplate(tokenAddr);
 
         SaleData memory s = _sale();
-        assertTrue(s.graduated, "createAndBuy should graduate if value >= target");
+        assertTrue(s.graduated, "createAndBuy should graduate when it sells the token cap");
 
         address pairAddr = factory.getPair(tokenAddr, WGAS);
         assertTrue(pairAddr != address(0), "pair should exist after createAndBuy grad");
@@ -395,7 +420,7 @@ contract DuoLaunchGraduationTest is Test {
         vm.prank(alice);
         tokenAddr = pump.createSale("FuzzP", "FZP", P_, targetRaise_, "", "", "", "");
 
-        _buy(alice, targetRaise_);
+        _buyToGraduation(alice);
 
         SaleData memory s = _sale();
         assertTrue(s.graduated, "should graduate for any valid P/target");

@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 /// @notice Uses CP-AMM (x*y=k) virtual pool, auto-creates Uniswap V2 pool on graduation
 /// @dev Github repo : https://github.com/DuoFinance/xDuo.git
 ///   - Internal bonding curve two-way trading
-///   - Graduates when raised GAS reaches TARGET_RAISE or p token sold 
+///   - Graduates when the configured token-sale allocation is sold
 ///   - All remaining tokens + GAS go into Uniswap V2 on graduation
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -178,6 +178,7 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 pSquared = p * p;
         uint256 vToken = Constants.TOTAL_SUPPLY * pSquared / (Constants.BPS_DENOMINATOR * twoPminusOne);
         uint256 vGAS   = targetRaise * (Constants.BPS_DENOMINATOR - p) / twoPminusOne;
+        require(vGAS > 0 && vToken > 0, "INVALID_TARGET_RAISE");
 
         sales[token] = SaleInfo({
             creator: creator,
@@ -209,7 +210,6 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         // 2. Calculate tokens due
         tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASIn);
         require(tokensOut > 0, "ZERO_TOKENS");
-        require(tokensOut >= minTokensOut, "SLIPPAGE");
 
         // 3. Prevent buying all before graduation, cap at graduation point (P * T)
         uint256 maxTokens = Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
@@ -221,6 +221,11 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
             GASIn = CurveMath.getAmountIn(GASReserve, tokenReserve, tokensOut);
             refund = GASInOriginal - GASIn;
         }
+
+        // The minimum output must apply to the final, capped output.  Checking
+        // before the cap would let a buy succeed with fewer tokens than the
+        // caller explicitly required when it triggers graduation.
+        require(tokensOut >= minTokensOut, "SLIPPAGE");
 
         // 4. Update state (Checks-Effects-Interactions: state changes before external calls)
         s.tokensSold += tokensOut;
@@ -237,8 +242,10 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
 
         emit TokensPurchased(buyer, token, GASIn, tokensOut);
 
-        // 7. Check if graduated (GAS target reached OR all graduation tokens sold)
-        if (s.GASRaised >= s.targetRaise || s.tokensSold >= maxTokens) {
+        // 7. The token allocation is the single graduation boundary. targetRaise
+        //    configures the curve and its expected proceeds, while this condition
+        //    keeps the sold supply deterministic despite integer rounding.
+        if (s.tokensSold >= maxTokens) {
             _graduate(token);
         }
     }
@@ -317,7 +324,13 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         require(!s.graduated, "SALE_GRADUATED");
         uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
-        return CurveMath.getAmountOut(GASReserve, tokenReserve, GASAmount);
+        uint256 tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASAmount);
+
+        // Mirror buy(): no quote can exceed the amount still sellable before
+        // graduation.  Any GAS beyond that amount is refunded by buy().
+        uint256 maxTokens = Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
+        uint256 remainingToGrad = maxTokens - s.tokensSold;
+        return tokensOut > remainingToGrad ? remainingToGrad : tokensOut;
     }
 
     /// @inheritdoc IDuo
