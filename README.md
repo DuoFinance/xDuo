@@ -96,3 +96,6 @@ DUO_STAKING_RECOVERY_AMOUNT=
 - `DuoSwapStaking` reads LP token addresses from `DUO_STAKING_POOLS`, using the `LP` part of `LP:ALLOC` entries.
 - Scripts prefer `DUO_*` env vars. `OS_*` aliases are still accepted for backward compatibility.
 - `DuoSwapStaking` and `DuoSwapStakingFactory` do not support Fee-on-Transfer (FoT) staking/reward tokens. Transfers must settle at the exact requested amount, otherwise transactions revert.
+
+
+codex resume 019f8d51-b901-7602-a0d1-0c83d0194243 //xDuo

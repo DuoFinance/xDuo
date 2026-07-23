@@ -139,8 +139,8 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         // 4. Transfer tokens from seller
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
 
-        // 5. Transfer GAS to seller
-        (bool ok, ) = msg.sender.call{value: GASOut}("");
+        // 5. Transfer GAS to seller (gas limited to prevent griefing)
+        (bool ok, ) = msg.sender.call{value: GASOut, gas: 100_000}("");
         require(ok, "GAS_TRANSFER_FAILED");
 
         emit TokensSold(msg.sender, token, tokensIn, GASOut);
@@ -234,9 +234,9 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         // 5. Transfer tokens to buyer
         IERC20(token).safeTransfer(buyer, tokensOut);
 
-        // 6. Refund overpaid GAS (after state changes)
+        // 6. Refund overpaid GAS (after state changes, gas limited to prevent griefing)
         if (refund > 0) {
-            (bool ok, ) = buyer.call{value: refund}("");
+            (bool ok, ) = buyer.call{value: refund, gas: 100_000}("");
             require(ok, "REFUND_FAILED");
         }
 

@@ -1,6 +1,7 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
+import * as fs from "fs";
 
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
@@ -44,14 +45,25 @@ async function main() {
   const routerAddress = await router.getAddress();
   console.log("Router:", routerAddress);
 
-  // 4. Deploy Pump
+  // 4. Deploy DuoLaunch (Pump)
   const pumpOverrides = await buildTxOverrides(ethers.provider, chain, 3_000_000n);
-  const Pump = await ethers.getContractFactory("Pump");
-  const pump = await Pump.deploy(routerAddress, pumpOverrides);
+  const Pump = await ethers.getContractFactory("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
+  const pump = await Pump.deploy(factoryAddress, wethAddress, pumpOverrides);
   await pump.waitForDeployment();
   const pumpAddress = await pump.getAddress();
-  console.log("Pump:", pumpAddress);
-  console.log("Pump tx:", pump.deploymentTransaction()?.hash ?? "unknown");
+  console.log("DuoLaunch:", pumpAddress);
+  console.log("DuoLaunch tx:", pump.deploymentTransaction()?.hash ?? "unknown");
+
+  // 5. Write deployed.json
+  const deployed = {
+    factory: factoryAddress,
+    router: routerAddress,
+    pump: pumpAddress,
+    wgas: wethAddress,
+    staking: "",
+  };
+  fs.writeFileSync("deployed.json", JSON.stringify(deployed, null, 2));
+  console.log("Saved to deployed.json");
 }
 
 main().catch((error) => {
