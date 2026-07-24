@@ -32,7 +32,7 @@ async function main() {
 
   // ── Step 1: Deploy GasGriefer ──
   console.log("  ── Step 1: Deploy GasGriefer ──");
-  const GF = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:GasGriefer");
+  const GF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:GasGriefer");
   const griefer = await GF.deploy();
   await griefer.waitForDeployment();
   const gAddr = await griefer.getAddress();

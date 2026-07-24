@@ -109,7 +109,9 @@ async function main() {
   const lpBurned = await pair.balanceOf(ethers.ZeroAddress);
   console.log(`  ${lpBurned > 0n ? PASS : FAIL} LP burned (locked): ${ethers.formatEther(lpBurned)} / ${ethers.formatEther(lpTotal)}`);
 
-  console.log(`  ${_I} token0: ${t0}  token1: ${t1}`);
+  // Determine which reserve is WETH
+  const wgasIsT0 = t0.toLowerCase() === wgas.toLowerCase();
+  const rWeth = wgasIsT0 ? r0 : r1;
 
   // ── Step 4: MEV Sandwich ──
   console.log("  ── Step 4: MEV Sandwich ──");
@@ -131,7 +133,7 @@ async function main() {
   const tc = new ethers.Contract(token, ERC20, deployer);
   const balBefore = await tc.balanceOf(deployer.address); // includes graduation tokens
 
-  const botBuyWETH = r1 / 80n;
+  const botBuyWETH = rWeth / 80n;
   await (await wethContract.deposit({ value: botBuyWETH })).wait();
   await (await wethContract.approve(routerAddr, botBuyWETH)).wait();
   const botBuyExpected = await router.getAmountsOut(botBuyWETH, pathBuy);

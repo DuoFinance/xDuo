@@ -35,7 +35,7 @@ async function main() {
 
   // ── Part 2: Permissionless sale creation ──
   console.log("  ── Part 2: Anyone can create a sale ──");
-  const tx = await pump.connect(deployer).createSale("User2Sale", "U2S", 8000, ONE * 100n, "", "", "", "");
+  const tx = await (pump as any).connect(deployer).createSale("User2Sale", "U2S", 8000, ONE * 100n, "", "", "", "");
   const rc = await tx.wait();
   const log = rc!.logs.find((l: any) => l.topics[0] === saleCreatedTopic);
   const token = saleIface.parseLog(log!)!.args.token as string;
@@ -44,13 +44,13 @@ async function main() {
 
   // ── Part 3: Permissionless buy/sell ──
   console.log("  ── Part 3: Anyone can buy/sell ──");
-  await (await pump.connect(deployer).buy(token, 0, { value: ONE * 5n })).wait();
+  await (await (pump as any).connect(deployer).buy(token, 0, { value: ONE * 5n })).wait();
   const bal = await new ethers.Contract(token, ERC20, deployer).balanceOf(deployer.address);
   console.log(`  ${bal > 0n ? PASS : FAIL} Buy works: ${ethers.formatEther(bal)} tokens`);
 
   const tc = new ethers.Contract(token, ["function approve(address,uint256) returns (bool)"], deployer);
   await (await tc.approve(d.pump, bal)).wait();
-  const txSell = await pump.connect(deployer).sell(token, bal, 0);
+  const txSell = await (pump as any).connect(deployer).sell(token, bal, 0);
   await txSell.wait();
   const balAfter = await new ethers.Contract(token, ERC20, deployer).balanceOf(deployer.address);
   console.log(`  ${balAfter < bal ? PASS : FAIL} Sell works (bal: ${ethers.formatEther(balAfter)})`);
@@ -58,12 +58,12 @@ async function main() {
   // ── Part 4: Graduation by anyone ──
   console.log("  ── Part 4: Anyone can trigger graduation ──");
   // Create a new sale, let deployer graduate it
-  const tx2 = await pump.createSale("Grader", "GRD", 8000, ONE * 100n, "", "", "", "");
+  const tx2 = await (pump as any).createSale("Grader", "GRD", 8000, ONE * 100n, "", "", "", "");
   const rc2 = await tx2.wait();
   const log2 = rc2!.logs.find((l: any) => l.topics[0] === saleCreatedTopic);
   const token2 = saleIface.parseLog(log2!)!.args.token as string;
 
-  await (await pump.connect(deployer).buy(token2, 0, { value: ONE * 200n, gasLimit: 3_000_000 })).wait();
+  await (await (pump as any).connect(deployer).buy(token2, 0, { value: ONE * 200n, gasLimit: 3_000_000 })).wait();
   const graduated = (await pump.getSale(token2))[7];
   console.log(`  ${graduated ? PASS : FAIL} Anyone (deployer) triggered graduation: ${graduated}`);
 

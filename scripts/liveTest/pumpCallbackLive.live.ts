@@ -70,7 +70,7 @@ async function main() {
   const t1 = await createSale(pump, "RR1", ONE * 200n);
   _log(_I, `Token: ${t1}`);
 
-  const RF = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:RefundReentrant");
+  const RF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:RefundReentrant");
   const rr = await RF.connect(deployer).deploy(pumpAddr, t1);
   await rr.waitForDeployment();
 
@@ -96,7 +96,7 @@ async function main() {
   const t2 = await createSale(pump, "SR1", ONE * 100n);
   _log(_I, `Token: ${t2}`);
 
-  const SF = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:SellReentrant");
+  const SF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:SellReentrant");
   const sr = await SF.connect(deployer).deploy(pumpAddr, t2);
   await sr.waitForDeployment();
 
@@ -184,7 +184,7 @@ async function main() {
   const t4 = await createSale(pump, "Grief", ONE * 200n);
   _log(_I, `Token: ${t4}`);
 
-  const GG = await ethers.getContractFactory("contracts/MaliciousHelper.sol:RefundGriefer");
+  const GG = await ethers.getContractFactory("contracts/test/MaliciousHelper.sol:RefundGriefer");
   const griefer = await GG.connect(deployer).deploy();
   await griefer.waitForDeployment();
   await griefer.setReject(false);

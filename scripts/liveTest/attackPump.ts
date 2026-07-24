@@ -111,7 +111,7 @@ async function main() {
   // ──── 1. REENTRANCY ────
   console.log(`\n${"=".repeat(60)}\n  1. REENTRANCY\n${"=".repeat(60)}`);
   const t1 = await sale(P, "Reentrant", "REN", 8000, ethers.parseEther("100"));
-  const RA = await ethers.getContractFactory("contracts/MaliciousHelper.sol:ReentrancyAttacker");
+  const RA = await ethers.getContractFactory("contracts/test/MaliciousHelper.sol:ReentrancyAttacker");
   const reenter = await RA.connect(attacker).deploy(pumpAddr, t1);
   await reenter.waitForDeployment();
   await attacker.sendTransaction({ to: await reenter.getAddress(), value: ONE * 100n });
@@ -134,7 +134,7 @@ async function main() {
     _log(INFO, `Direct 3000 buy OK, gasRaised=${ethers.formatEther(grDb)}`);
   } catch { /* direct buy reverted (may have triggered graduation with insufficient gas) */ }
   // Test RefundGriefer helper
-  const RG = await ethers.getContractFactory("contracts/MaliciousHelper.sol:RefundGriefer");
+  const RG = await ethers.getContractFactory("contracts/test/MaliciousHelper.sol:RefundGriefer");
   const griefer = await RG.connect(attacker).deploy();
   await griefer.waitForDeployment();
   // Griefer's receive() rejects ETH, so sendTransaction should fail on-chain

@@ -8,6 +8,21 @@ NETWORK="${1:-anvil}"
 FAILED=()
 PASSED=0
 
+# Auto-start Anvil if running on anvil network and node is not available
+if [ "$NETWORK" = "anvil" ] && ! curl -s http://127.0.0.1:8545 > /dev/null 2>&1; then
+  echo "Anvil not detected, starting..."
+  "$SCRIPT_DIR/anvil.sh"
+  sleep 1
+fi
+
+# Deploy contracts on Anvil if needed
+if [ "$NETWORK" = "anvil" ]; then
+  echo ""
+  echo "Deploying contracts to Anvil..."
+  npx hardhat run scripts/liveTest/setupAnvil.ts --network anvil
+  echo ""
+fi
+
 TESTS=(
   "scripts/liveTest/pumpLive.live.ts"
   "scripts/liveTest/pumpGradientLive.live.ts"
@@ -23,6 +38,7 @@ TESTS=(
   "scripts/liveTest/item09_noOwnership.live.ts"
   "scripts/liveTest/item10_extremeReserve.live.ts"
   "scripts/liveTest/item11_gasGriefing.live.ts"
+  "scripts/liveTest/attackPump.ts"
 )
 
 echo "═══════════════════════════════════════════════════"
@@ -31,7 +47,7 @@ echo "════════════════════════�
 echo
 
 for test in "${TESTS[@]}"; do
-  NAME=$(basename "$test" .live.ts)
+  NAME=$(basename "$test" .ts)
   echo ""
   echo "───────────────────────────────────────────────"
   echo "  ▶ $NAME"

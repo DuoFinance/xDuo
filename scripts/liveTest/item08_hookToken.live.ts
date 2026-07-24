@@ -49,14 +49,14 @@ async function main() {
   // ── Part 2: Deploy PostTransferHookToken and a reentrant receiver ──
   console.log("  ── Part 2: Hook token + reentrant receiver ──");
 
-  const HF = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:PostTransferHookToken");
+  const HF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:PostTransferHookToken");
   const hookTok = await HF.deploy("HookToken", "HOK", ethers.parseEther("1000000000"), deployer.address);
   await hookTok.waitForDeployment();
   const hookAddr = await hookTok.getAddress();
   console.log(`  ${_I} HookToken: ${hookAddr}`);
 
   // Deploy a reentrant receiver that tries to re-enter pump on tokensReceived
-  const RecipeFactory = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:HookReentrantReceiver");
+  const RecipeFactory = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:HookReentrantReceiver");
   const recipe = await RecipeFactory.deploy(d.pump);
   await recipe.waitForDeployment();
   const recipeAddr = await recipe.getAddress();

@@ -93,7 +93,7 @@ async function main() {
 
   // ── Part 2: FeeOnTransfer token demonstration ──
   console.log("  ── Part 2: FeeOnTransfer token (5% fee) ──");
-  const HF = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:FeeOnTransferToken");
+  const HF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:FeeOnTransferToken");
   const feeTok = await HF.deploy("FeeToken", "FEE", ethers.parseEther("1000000000"), deployer.address);
   await feeTok.waitForDeployment();
   const feeAddr = await feeTok.getAddress();
@@ -135,11 +135,12 @@ async function main() {
     "function balanceOf(address) view returns (uint256)",
     "function transfer(address,uint256) returns (bool)",
   ], deployer);
-  const ttBalBefore = await ttContract.balanceOf(deployer.address);
+  const ttBalBefore = BigInt(await ttContract.balanceOf(deployer.address));
   const testTransfer = ethers.parseEther("1");
   const burnAddr = "0x000000000000000000000000000000000000dEaD";
   await (await ttContract.transfer(burnAddr, testTransfer)).wait();
-  const ttDeducted = ttBalBefore - await ttContract.balanceOf(deployer.address);
+  const ttBalAfter = BigInt(await ttContract.balanceOf(deployer.address));
+  const ttDeducted = ttBalBefore - ttBalAfter;
   console.log(`  ${ttDeducted === testTransfer ? PASS : FAIL} TokenTemplate no fee: sent ${ethers.formatEther(testTransfer)}, deducted ${ethers.formatEther(ttDeducted)}`);
 
   console.log(`\n${"=".repeat(60)}`);

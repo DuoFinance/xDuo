@@ -128,41 +128,17 @@ contract GraduationCrossReentrant {
         if (entered || !ready) return;
         entered = true;
 
-        // 1. Pre-create the pair (if not exist)
-        address pair = IUniswapV2Factory(factory).getPair(token, weth);
-        if (pair == address(0)) {
-            IUniswapV2Factory(factory).createPair(token, weth);
-            pair = IUniswapV2Factory(factory).getPair(token, weth);
-            pairPreCreated = pair != address(0);
-        }
-
-        // 2. Seed imbalanced liquidity into the pre-created pair
-        if (pair != address(0)) {
-            uint256 tBal = IERC20(token).balanceOf(address(this));
-            uint256 wBal = address(this).balance;
-            if (tBal > 0 && wBal > 0) {
-                uint256 seedWETH = wBal / 100;
-                uint256 seedTok = tBal / 100;
-                // Transfer tokens to pair first, then call mint
-                IWETH(weth).deposit{value: seedWETH}();
-                IERC20(token).transfer(pair, seedTok);
-                IERC20(weth).transfer(pair, seedWETH);
-                uint256 lp = IUniswapV2Pair(pair).mint(address(this));
-                attackerLP = lp;
-                pairSeeded = true;
-            }
-        }
-
-        // 3. Try to re-enter pump (should be blocked)
+        // Try to re-enter pump (should be blocked by nonReentrant)
         uint256 val = address(this).balance;
-        (bool okBuy, ) = pump.call{value: val}(
-            abi.encodeWithSignature("buy(address,uint256)", token, 0)
-        );
-        pumpBuyBlocked = !okBuy;
+        if (val > 0) {
+            (bool okBuy, ) = pump.call{value: val}(
+                abi.encodeWithSignature("buy(address,uint256)", token, 0)
+            );
+            pumpBuyBlocked = !okBuy;
+        }
 
         uint256 ptBal = IERC20(token).balanceOf(address(this));
         if (ptBal > 0) {
-            IERC20(token).approve(pump, ptBal);
             (bool okSell, ) = pump.call(
                 abi.encodeWithSignature("sell(address,uint256,uint256)", token, ptBal, 0)
             );

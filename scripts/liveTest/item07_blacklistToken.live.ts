@@ -47,7 +47,7 @@ async function main() {
 
   // ── Part 2: Deploy BlacklistToken and test blacklist behavior ──
   console.log("  ── Part 2: BlacklistToken behavior ──");
-  const HF = await ethers.getContractFactory("contracts/CallbackTestHelper.sol:BlacklistToken");
+  const HF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:BlacklistToken");
   const blToken = await HF.deploy("Blacklisted", "BLK", ethers.parseEther("1000000000"), deployer.address);
   await blToken.waitForDeployment();
   const blAddr = await blToken.getAddress();
