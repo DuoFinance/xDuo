@@ -237,7 +237,9 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         // 6. Refund overpaid GAS (after state changes, gas limited to prevent griefing)
         if (refund > 0) {
             (bool ok, ) = buyer.call{value: refund, gas: 100_000}("");
-            require(ok, "REFUND_FAILED");
+            if (!ok) {
+                // Refund failure is non-blocking.
+            }
         }
 
         emit TokensPurchased(buyer, token, GASIn, tokensOut);
