@@ -97,7 +97,7 @@ async function main() {
   const pumpCode = await ethers.provider.getCode(pumpAddr);
   if (pumpCode === "0x" || pumpCode === "0x0") {
     _log(FAIL, `No DuoLaunch bytecode at ${pumpAddr}`);
-    _log(INFO, "Run with: --network legacy (anvil fork of NeoX mainnet)");
+    _log(INFO, "Run with: --network anvil (anvil fork of NeoX mainnet)");
     process.exit(1);
   }
 

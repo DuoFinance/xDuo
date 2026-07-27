@@ -127,6 +127,9 @@ async function main() {
     wgas
   );
 
+  // Mine an empty block to flush any pending txs before multi-tx sandwich
+  await ethers.provider.send("evm_mine", []);
+
   // 4a. Front-run: bot buys tokens on pair
   console.log("  4a. Front-run: bot buys tokens on pair");
   const dt = await deadline();

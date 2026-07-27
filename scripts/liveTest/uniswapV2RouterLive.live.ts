@@ -49,7 +49,7 @@ async function main() {
   // 1 ── Connect to Router
   console.log("1. Connecting to Router...");
   const code = await ethers.provider.getCode(deployed.router);
-  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.router}. Run with --network <network> where the contracts are deployed (e.g. neoxTestnet, legacy)`);
+  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.router}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
   const router = await ethers.getContractAt(ROUTER_IFACE, deployed.router);
   assert.strictEqual(
     (await router.getAddress()).toLowerCase(),

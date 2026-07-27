@@ -11,19 +11,11 @@ async function main() {
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Balance:", ethers.formatEther(balance), "\n");
 
-  // Read original deployed.json to get the WGAS address (pre-deployed on mainnet)
+  // 1. Use fork's existing WGAS contract at the mainnet address
   const originalDeployed = JSON.parse(fs.readFileSync(DEPLOYED_PATH, "utf8"));
   const wgasAddr = originalDeployed.wgas;
-  console.log("Using WGAS:", wgasAddr);
-
-  // 1. Set WETH9 runtime bytecode at the mainnet WGAS address on Anvil
-  console.log("1. Setting WETH9 bytecode at WGAS address...");
-  const weth9Artifact = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "..", "artifacts", "contracts", "Weth9.sol", "WETH9.json"), "utf8")
-  );
-  await ethers.provider.send("hardhat_setCode", [wgasAddr, weth9Artifact.deployedBytecode]);
-  const code = await ethers.provider.getCode(wgasAddr);
-  console.log("   WETH9 code set:", code !== "0x" ? "OK" : "FAILED");
+  const wgasCode = await ethers.provider.getCode(wgasAddr);
+  console.log("1. Using WGAS from fork:", wgasAddr, "(code:", wgasCode !== "0x" ? "OK" : "MISSING)", ")");
 
   // 2. Deploy Factory
   console.log("2. Deploying UniswapV2Factory...");
@@ -49,13 +41,13 @@ async function main() {
   const pumpAddr = await pump.getAddress();
   console.log("   Pump:", pumpAddr);
 
-  // 5. Save deployed.json (keep original WGAS address)
+  // 5. Save deployed.json
   const deployed = {
     factory: factoryAddr,
     router: routerAddr,
     pump: pumpAddr,
     wgas: wgasAddr,
-    staking: originalDeployed.staking || "",
+    staking: "",
   };
   fs.writeFileSync(DEPLOYED_PATH, JSON.stringify(deployed, null, 2) + "\n");
   console.log("\n5. Saved deployed.json");

@@ -299,7 +299,7 @@ async function main() {
 
   // Check bytecode
   let code = await ethers.provider.getCode(deployed.pump);
-  assert.notStrictEqual(code, "0x", `No Pump bytecode at ${deployed.pump}. Use --network legacy/neoxTestnet`);
+  assert.notStrictEqual(code, "0x", `No Pump bytecode at ${deployed.pump}. Use --network anvil/legacy/neoxTestnet`);
   code = await ethers.provider.getCode(deployed.factory);
   assert.notStrictEqual(code, "0x", `No Factory bytecode at ${deployed.factory}`);
 

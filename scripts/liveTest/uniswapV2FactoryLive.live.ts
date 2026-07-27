@@ -33,7 +33,7 @@ async function main() {
   // 1 ── Connect to Factory
   console.log("1. Connecting to Factory...");
   const code = await ethers.provider.getCode(deployed.factory);
-  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.factory}. Run with --network <network> where the contracts are deployed (e.g. neoxTestnet, legacy)`);
+  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.factory}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
   const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);
   const fAddr = await factory.getAddress();
   assert.strictEqual(fAddr.toLowerCase(), deployed.factory.toLowerCase());
