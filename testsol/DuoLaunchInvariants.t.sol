@@ -735,9 +735,8 @@ contract DuoLaunchInvariants is Test {
 
     // ─── buy: REFUND_FAILED (buyer rejects ETH on refund) ────
 
-    function test_Buy_RefundFailed_Reverts() public {
+    function test_Buy_RefundFailed_Succeeds() public {
         EthRejecter noEth = new EthRejecter();
-        // Buy enough to hit the overshoot: needed ≈ TARGET (1000 ETH)
         vm.deal(address(noEth), TARGET + 100 ether);
 
         SaleData memory s = _sale();
@@ -750,9 +749,20 @@ contract DuoLaunchInvariants is Test {
         );
         uint256 overshoot = needed + 10 ether;
 
-        vm.expectRevert("REFUND_FAILED");
+        uint256 balBefore = address(noEth).balance;
+
         vm.prank(address(noEth));
         pump.buy{value: overshoot}(tokenAddr, 0);
+
+        uint256 tokensGot = IERC20(tokenAddr).balanceOf(address(noEth));
+        assertTrue(tokensGot > 0, "buyer should receive tokens");
+
+        SaleData memory sAfter = _sale();
+        assertTrue(sAfter.tokensSold > s.tokensSold, "tokensSold should increase");
+
+        uint256 balAfter = address(noEth).balance;
+        uint256 spent = balBefore - balAfter;
+        assertEq(spent, overshoot, "refund lost, full overshoot spent");
     }
 
     // ─── receive(): USE_BUY_FUNCTION ────────────────────────
