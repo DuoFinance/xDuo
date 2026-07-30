@@ -129,19 +129,33 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         // 2. Calculate GAS due
         GASOut = CurveMath.getAmountOut(tokenReserve, GASReserve, tokensIn);
         require(GASOut > 0, "ZERO_GAS");
-        require(GASOut >= minGASOut, "SLIPPAGE");
         require(GASOut <= s.GASRaised, "INSUFFICIENT_GAS");
 
-        // 3. Update state (Checks-Effects-Interactions: state before external calls)
+        // 3. Deduct protocol fee from GAS output
+        address feeTo = IUniswapV2Factory(uniswapFactory).feeTo();
+        uint256 fee;
+        if (feeTo != address(0)) {
+            fee = GASOut * Constants.FEE_FACTOR / Constants.FEE_DENOMINATOR;
+        }
+        uint256 GASOutForSeller = GASOut - fee;
+        require(GASOutForSeller >= minGASOut, "SLIPPAGE");
+
+        // 4. Update state (Checks-Effects-Interactions: state before external calls)
         s.tokensSold -= tokensIn;
         s.GASRaised  -= GASOut;
 
-        // 4. Transfer tokens from seller
+        // 5. Transfer tokens from seller
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
 
-        // 5. Transfer GAS to seller (gas limited to prevent griefing)
-        (bool ok, ) = msg.sender.call{value: GASOut, gas: 100_000}("");
+        // 6. Transfer GAS to seller (gas limited to prevent griefing)
+        (bool ok, ) = msg.sender.call{value: GASOutForSeller, gas: 100_000}("");
         require(ok, "GAS_TRANSFER_FAILED");
+
+        // 7. Transfer protocol fee to feeTo
+        if (fee > 0) {
+            (bool feeOk, ) = feeTo.call{value: fee, gas: 100_000}("");
+            if (!feeOk) {}
+        }
 
         emit TokensSold(msg.sender, token, tokensIn, GASOut);
     }
@@ -207,19 +221,35 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
         require(tokenReserve > 0, "NO_TOKENS_LEFT");
 
-        // 2. Calculate tokens due
-        tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASIn);
+        // 2. Deduct protocol fee (feeTo from factory, 0 when address(0))
+        address feeTo = IUniswapV2Factory(uniswapFactory).feeTo();
+        uint256 fee;
+        if (feeTo != address(0)) {
+            fee = GASIn * Constants.FEE_FACTOR / Constants.FEE_DENOMINATOR;
+        }
+        uint256 GASInEffective = GASIn - fee;
+
+        // 3. Calculate tokens due
+        tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASInEffective);
         require(tokensOut > 0, "ZERO_TOKENS");
 
-        // 3. Prevent buying all before graduation, cap at graduation point (P * T)
+        // 4. Prevent buying all before graduation, cap at graduation point (P * T)
         uint256 maxTokens = Constants.TOTAL_SUPPLY * s.graduationBps / Constants.BPS_DENOMINATOR;
         uint256 remainingToGrad = maxTokens - s.tokensSold;
         uint256 refund = 0;
         uint256 GASInOriginal = GASIn;
         if (tokensOut > remainingToGrad) {
             tokensOut = remainingToGrad;
-            GASIn = CurveMath.getAmountIn(GASReserve, tokenReserve, tokensOut);
-            refund = GASInOriginal - GASIn;
+            GASInEffective = CurveMath.getAmountIn(GASReserve, tokenReserve, tokensOut);
+            // Back-calculate total GAS (before fee) needed for the capped amount
+            if (feeTo != address(0)) {
+                uint256 denom = Constants.FEE_DENOMINATOR - Constants.FEE_FACTOR;
+                uint256 GASInTotal = (GASInEffective * Constants.FEE_DENOMINATOR + denom - 1) / denom;
+                fee = GASInTotal - GASInEffective;
+                refund = GASInOriginal - GASInTotal;
+            } else {
+                refund = GASInOriginal - GASInEffective;
+            }
         }
 
         // The minimum output must apply to the final, capped output.  Checking
@@ -227,24 +257,30 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         // caller explicitly required when it triggers graduation.
         require(tokensOut >= minTokensOut, "SLIPPAGE");
 
-        // 4. Update state (Checks-Effects-Interactions: state changes before external calls)
+        // 5. Update state (Checks-Effects-Interactions: state changes before external calls)
         s.tokensSold += tokensOut;
-        s.GASRaised  += GASIn;
+        s.GASRaised  += GASInEffective;
 
-        // 5. Transfer tokens to buyer
+        // 6. Transfer tokens to buyer
         IERC20(token).safeTransfer(buyer, tokensOut);
 
-        // 6. Refund overpaid GAS (after state changes, gas limited to prevent griefing)
+        // 7. Refund overpaid GAS (after state changes, gas limited to prevent griefing)
         if (refund > 0) {
-            (bool ok, ) = buyer.call{value: refund, gas: 100_000}("");
-            if (!ok) {
+            (bool refund_Ok, ) = buyer.call{value: refund, gas: 100_000}("");
+            if (!refund_Ok) {
                 // Refund failure is non-blocking.
             }
         }
 
-        emit TokensPurchased(buyer, token, GASIn, tokensOut);
+        // 8. Transfer protocol fee to feeTo
+        if (fee > 0) {
+            (bool feeOk, ) = feeTo.call{value: fee, gas: 100_000}("");
+            if (!feeOk) {}
+        }
 
-        // 7. The token allocation is the single graduation boundary. targetRaise
+        emit TokensPurchased(buyer, token, GASInEffective + fee, tokensOut);
+
+        // 9. The token allocation is the single graduation boundary. targetRaise
         //    configures the curve and its expected proceeds, while this condition
         //    keeps the sold supply deterministic despite integer rounding.
         if (s.tokensSold >= maxTokens) {
@@ -324,9 +360,14 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         SaleInfo storage s = sales[token];
         require(s.creator != address(0), "SALE_NOT_EXIST");
         require(!s.graduated, "SALE_GRADUATED");
+        address feeTo = IUniswapV2Factory(uniswapFactory).feeTo();
+        uint256 GASEffective = GASAmount;
+        if (feeTo != address(0)) {
+            GASEffective = GASAmount - (GASAmount * Constants.FEE_FACTOR / Constants.FEE_DENOMINATOR);
+        }
         uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
-        uint256 tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASAmount);
+        uint256 tokensOut = CurveMath.getAmountOut(GASReserve, tokenReserve, GASEffective);
 
         // Mirror buy(): no quote can exceed the amount still sellable before
         // graduation.  Any GAS beyond that amount is refunded by buy().
@@ -342,7 +383,13 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         require(!s.graduated, "SALE_GRADUATED");
         uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
-        return CurveMath.getAmountOut(tokenReserve, GASReserve, tokenAmount);
+        uint256 GASOut = CurveMath.getAmountOut(tokenReserve, GASReserve, tokenAmount);
+        // Deduct fee from the output (same as sell())
+        address feeTo = IUniswapV2Factory(uniswapFactory).feeTo();
+        if (feeTo != address(0)) {
+            GASOut = GASOut - (GASOut * Constants.FEE_FACTOR / Constants.FEE_DENOMINATOR);
+        }
+        return GASOut;
     }
 
     /* ============ Receive ============ */

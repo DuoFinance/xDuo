@@ -78,6 +78,7 @@ contract UniswapV2Pair {
 }
 
 contract UniswapV2Factory {
+    address public feeTo;
     mapping(address => mapping(address => address)) public getPair;
 
     function createPair(address tokenA, address tokenB) external returns (address pair) {
@@ -88,6 +89,7 @@ contract UniswapV2Factory {
         getPair[t0][t1] = pair;
         getPair[t1][t0] = pair;
     }
+    function setFeeTo(address _feeTo) external { feeTo = _feeTo; }
 }
 
 // ═══════════════════════════════════════════════════════════════

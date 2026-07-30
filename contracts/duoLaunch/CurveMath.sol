@@ -14,9 +14,8 @@ library CurveMath {
     ) internal pure returns (uint256) {
         require(amountIn > 0, "ZERO_INPUT");
         require(reserveIn > 0 && reserveOut > 0, "INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn; // 0 fee deducted at call site
-        uint256 numerator = amountInWithFee * reserveOut;
-        uint256 denominator = reserveIn + amountInWithFee;
+        uint256 numerator = amountIn * reserveOut;
+        uint256 denominator = reserveIn + amountIn;
         return numerator / denominator;
     }
 

@@ -14,4 +14,9 @@ library Constants {
     uint256 constant MAX_GRADUATION_BPS = 9900;
     uint256 constant BPS_DENOMINATOR   = 10000;
 
+    /* ============ Fee Parameters ============ */
+    /// @dev Protocol fee: 3 / 10000 = 0.03% on buy/sell
+    uint256 constant FEE_FACTOR      = 3;
+    uint256 constant FEE_DENOMINATOR = 10000;
+
 }

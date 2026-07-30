@@ -72,6 +72,7 @@ contract MockUniswapV2Pair {
 
 // ─── Mock Uniswap V2 Factory ────────────────────────────────
 contract MockUniswapV2Factory {
+    address public feeTo;
     mapping(address => mapping(address => address)) public getPair;
     function createPair(address tokenA, address tokenB) external returns (address pair) {
         require(getPair[tokenA][tokenB] == address(0), "EXISTS");
@@ -79,6 +80,7 @@ contract MockUniswapV2Factory {
         getPair[tokenA][tokenB] = pair;
         getPair[tokenB][tokenA] = pair;
     }
+    function setFeeTo(address _feeTo) external { feeTo = _feeTo; }
 }
 
 // ─── Contract that rejects ETH (for negative tests) ──────────
