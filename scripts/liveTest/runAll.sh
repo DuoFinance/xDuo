@@ -25,7 +25,9 @@ fi
 
 TESTS=(
   "scripts/liveTest/pumpLive.live.ts"
+  "scripts/liveTest/feeDetail.live.ts"
   "scripts/liveTest/pumpGradientLive.live.ts"
+  "scripts/liveTest/pumpLive.live.ts"
   "scripts/liveTest/pumpCallbackLive.live.ts"
   "scripts/liveTest/uniswapV2FactoryLive.live.ts"
   "scripts/liveTest/uniswapV2RouterLive.live.ts"
