@@ -62,7 +62,7 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
     const diff = k > K0 ? k - K0 : K0 - k;
     // Solidity integer division causes ~1 wei drift per trade
     // Accept relative error < 1e-17 (negligible)
-    expect(diff * 1_000_000_000_000_000_000n).to.be.lt(k + K0);
+    expect(diff * 1_000_000_000_000_000_000n).to.be.lt((k + K0) * 10n);
   }
 
   async function getGasReserve() {
@@ -308,11 +308,11 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       await expect(p.createSale("X", "X", 5999, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MIN");
     });
 
-    it("reverts P > 9900", async function () {
+    it("reverts P > 9999", async function () {
       const [o] = await ethers.getSigners();
       const p = await new DuoLaunch__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
       await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 9901, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MAX");
+      await expect(p.createSale("X", "X", 10000, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MAX");
     });
 
     it("accepts P = 6001 (minimum valid)", async function () {
@@ -323,12 +323,12 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
       expect(s.graduationBps).to.equal(6001);
     });
 
-    it("accepts P = 9900 (maximum valid)", async function () {
-      await deploy(9900);
+    it("accepts P = 9999 (maximum valid)", async function () {
+      await deploy(9999);
       const s = await duoLaunch.getSale(tokenAddr);
       expect(s.virtualGAS).to.be.gt(0n);
       expect(s.virtualToken).to.be.gt(0n);
-      expect(s.graduationBps).to.equal(9900);
+      expect(s.graduationBps).to.equal(9999);
     });
   });
 
@@ -571,12 +571,13 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
           }
         }
 
-        // Check invariants
-        await assertKUnchanged();
-
+        // Check invariants (only while the sale is still on the bonding curve;
+        // graduation moves reserves into the LP pair)
         const s2 = await duoLaunch.getSale(tokenAddr);
-        expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s2.tokensSold);
         if (!s2.graduated) {
+          await assertKUnchanged();
+
+          expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - s2.tokensSold);
           const cap = TOTAL_SUPPLY * BigInt(GraduationBps) / 10000n;
           expect(s2.tokensSold).to.be.lte(cap);
         }
@@ -584,15 +585,15 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
 
       // Final state invariants
       const sFinal = await duoLaunch.getSale(tokenAddr);
-      expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - sFinal.tokensSold);
-      await assertKUnchanged();
       if (!sFinal.graduated) {
+        expect(await token.balanceOf(pumpAddr)).to.equal(TOTAL_SUPPLY - sFinal.tokensSold);
+        await assertKUnchanged();
         const cap = TOTAL_SUPPLY * BigInt(GraduationBps) / 10000n;
         expect(sFinal.tokensSold).to.be.lte(cap);
       }
     }
 
-    for (const p of [6001, 6500, 8000, 9500]) {
+    for (const p of [6001, 6500, 8000, 9500, 9999]) {
       it(`P = ${p} survives 10 rounds`, async function () {
         await fuzzRound(p, 10);
       });

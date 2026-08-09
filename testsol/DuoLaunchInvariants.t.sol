@@ -536,7 +536,7 @@ contract DuoLaunchInvariants is Test {
         pump.createSale("X", "X", 5999, TARGET, "", "", "", "");
 
         vm.expectRevert("INVALID_GRADUATION_MAX");
-        pump.createSale("X", "X", 9901, TARGET, "", "", "", "");
+        pump.createSale("X", "X", 10000, TARGET, "", "", "", "");
     }
 
     function test_InvalidTargetRaise_Reverts() public {
@@ -852,8 +852,8 @@ contract DuoLaunchInvariants is Test {
         address t1 = pump.createSale("Min", "MIN", 6000, 1000 ether, "", "", "", "");
         assertTrue(t1 != address(0));
 
-        // Valid maximum: 9900
-        address t2 = pump.createSale("Max", "MAX", 9900, 1000 ether, "", "", "", "");
+        // Valid maximum: 9999
+        address t2 = pump.createSale("Max", "MAX", 9999, 1000 ether, "", "", "", "");
         assertTrue(t2 != address(0));
 
         // Below MIN_GRADUATION_BPS
@@ -862,7 +862,7 @@ contract DuoLaunchInvariants is Test {
 
         // Above MAX_GRADUATION_BPS
         vm.expectRevert("INVALID_GRADUATION_MAX");
-        pump.createSale("High", "HIGH", 9901, 1000 ether, "", "", "", "");
+        pump.createSale("High", "HIGH", 10000, 1000 ether, "", "", "", "");
 
         // P=5000 triggers INVALID_GRADUATION_MIN check first (MIN=6000)
         vm.expectRevert("INVALID_GRADUATION_MIN");
