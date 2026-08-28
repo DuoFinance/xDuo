@@ -63,8 +63,6 @@ async function main() {
     FACTORY: factoryAddress,
     ROUTER: routerAddress,
     BONDING: DuoLaunchAddress,
-    DUO: "",
-    STAKING: "",
   };
 
   fs.writeFileSync(contractsPath, JSON.stringify(saved, null, 2) + "\n");
