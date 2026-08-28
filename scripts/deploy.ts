@@ -1,24 +1,14 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
+import path from "path";
+import fs from "fs";
+
+
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
-const PUMP_FQN = "contracts/duoLaunch/DuoLaunch.sol:DuoLaunch";
+const DUOLAUNCH_FQN = "contracts/duoLaunch/DuoLaunch.sol:DuoLaunch";
 
-async function deployPump(
-  factoryAddress: string,
-  wgasAddress: string,
-  chain: import("../config/chains").ChainConfig
-) {
-  const pumpOverrides = await buildTxOverrides(ethers.provider, chain, 3_000_000n);
-  const Pump = await ethers.getContractFactory(PUMP_FQN);
-  const pump = await Pump.deploy(factoryAddress, wgasAddress, pumpOverrides);
-  await pump.waitForDeployment();
-  const pumpAddress = await pump.getAddress();
-  console.log("Pump:", pumpAddress);
-  console.log("Pump tx:", pump.deploymentTransaction()?.hash ?? "unknown");
-  return pump;
-}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -41,8 +31,6 @@ async function main() {
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
   console.log("WGAS:", chain.wgasAddress);
 
-  //const weth_Address = await deployWeth();
-
   const factoryOverrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
   const routerOverrides = await buildTxOverrides(ethers.provider, chain, 8_000_000n);
 
@@ -60,7 +48,28 @@ async function main() {
   console.log("Router:", routerAddress);
   console.log("Router tx:", router.deploymentTransaction()?.hash ?? "unknown");
 
-  await deployPump(factoryAddress, chain.wgasAddress, chain);
+  // deploy duoLaunch.cs
+  const LaunchOverrides = await buildTxOverrides(ethers.provider, chain, 3_000_000n);
+  const Launch = await ethers.getContractFactory(DUOLAUNCH_FQN);
+  const LaunchRes = await Launch.deploy(factoryAddress, chain.wgasAddress, LaunchOverrides);
+  await LaunchRes.waitForDeployment();
+  const DuoLaunchAddress = await LaunchRes.getAddress();
+  console.log("DuoLaunch:", DuoLaunchAddress);
+  console.log("tx:", LaunchRes.deploymentTransaction()?.hash ?? "unknown");
+
+  // Write deployed addresses to deployed.json
+  const contractsPath = path.resolve(__dirname, "..", "deployed.json");
+  const saved = {
+    FACTORY: factoryAddress,
+    ROUTER: routerAddress,
+    BONDING: DuoLaunchAddress,
+    DUO: "",
+    STAKING: "",
+  };
+
+  fs.writeFileSync(contractsPath, JSON.stringify(saved, null, 2) + "\n");
+  console.log(`\n[deploy Factory, Router, DuoLaunch] Saved Factory, Router, DuoLaunch contract addresses to ${contractsPath}`);
+  console.log(JSON.stringify(saved, null, 2));
 }
 
 main().catch((error) => {
