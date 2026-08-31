@@ -68,6 +68,19 @@ async function main() {
   fs.writeFileSync(contractsPath, JSON.stringify(saved, null, 2) + "\n");
   console.log(`\n[deploy Factory, Router, DuoLaunch] Saved Factory, Router, DuoLaunch contract addresses to ${contractsPath}`);
   console.log(JSON.stringify(saved, null, 2));
+
+  
+  // Write deployed addresses to ui-v2/xcontract.json
+  const x_contractsPath = path.resolve(__dirname, "..", "..","ui-v2/deployedContracts/x_contracts.json");
+  const x_saved = {
+    FACTORY: '0x'.concat(factoryAddress),
+    ROUTER: '0x'.concat(routerAddress),
+    BONDING: '0x'.concat(DuoLaunchAddress),
+  };
+
+  fs.writeFileSync(x_contractsPath, JSON.stringify(x_saved, null, 2) + "\n");
+  console.log(`\n[deploy Factory, Router, Bonding] Saved Factory, Router, Bonding contract addresses to ${x_contractsPath}`);
+  console.log(JSON.stringify(x_saved, null, 2));
 }
 
 main().catch((error) => {

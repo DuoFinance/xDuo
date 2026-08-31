@@ -4,6 +4,7 @@ import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
 import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "fs";
 import path from "path";
+import fs from 'fs';
 
 const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
 const DEPLOYED_JSON_TMP = `${DEPLOYED_JSON}.tmp`;
@@ -212,6 +213,21 @@ async function main() {
   deployed.STAKING = stakingValue;
   atomicWriteDeployed(deployed);
   console.log("Saved (atomically) to deployed.json");
+
+  // Write deployed addresses to ui-v2/xcontract.json
+  const x_contractsPath = path.resolve(__dirname, "..", "..", "ui-v2/deployedContracts/x_contracts.json");
+  const x_saved = {
+    FACTORY:deployed.FACTORY,
+    ROUTER:deployed.ROUTER,
+    BONDING:deployed.BONDING,
+    DUO: tokenAddress,
+    STAKING:stakingValue
+  };
+
+  fs.writeFileSync(x_contractsPath, JSON.stringify(x_saved, null, 2) + "\n");
+  console.log(`\n[Deploy Duo and Staking] Saved Duo and Staking contract addresses to ${x_contractsPath}`);
+  console.log(JSON.stringify(x_saved, null, 2));
+
 }
 
 main().catch((error) => {
