@@ -98,4 +98,14 @@ DUO_STAKING_RECOVERY_AMOUNT=
 - `DuoSwapStaking` and `DuoSwapStakingFactory` do not support Fee-on-Transfer (FoT) staking/reward tokens. Transfers must settle at the exact requested amount, otherwise transactions revert.
 
 
-codex resume 019f8d51-b901-7602-a0d1-0c83d0194243 //xDuo
+## License
+
+MIT License with 3-Year Algorithm Non-Copy Addendum — see [`LICENSE`](./LICENSE).
+
+- **Base**: MIT (Section A) for the whole repository.
+- **Additional restriction (Section B)**: The Virtual GAS / Virtual Token (vGAS / vToken) bonding-curve algorithm — including `SaleInfo.virtualGAS / virtualToken`, formulas `vToken = T·p² / BPS_DENOM / (2p-BPS_DENOM)` and `vGAS = R·(BPS_DENOM-p)/(2p-BPS_DENOM)`, and effective reserves `GASReserve = virtualGAS+GASRaised` / `tokenReserve = virtualToken-tokensSold` — **may not be copied/forked/ported to another project within 3 years** without written approval from the Licensor.
+  - Effective: 2026-08-31 → Expires: 2029-08-31 (auto-converts to pure MIT after expiry).
+  - Applies to `contracts/duoLaunch/DuoLaunch.sol`, `CurveMath.sol`, `Constants.sol`, `IDuo.sol`. Generic `x*y=k` alone is not restricted.
+  - Normal use of *this* repo and PRs back to it are allowed.
+- **Pseudonymous licensor (Section B §8)**: Licensor is the pseudonymous collective "Duo Finance" controlling `github.com/DuoFinance/xDuo` and/or the canonical deployer addresses. No natural-person disclosure is required; rights are enforceable without doxxing (Berne Art. 7(3), 17 U.S.C. §302(c)). Notices may be served via GitHub issue/PR or a message signed by the canonical deployer/factory-owner key, and enforcement may be via a designated agent.
+

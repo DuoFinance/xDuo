@@ -1,0 +1,164 @@
+MIT License with 3-Year Algorithm Non-Copy Addendum
+Copyright (c) 2026 Duo Finance (https://github.com/DuoFinance/xDuo)
+
+================================================================
+Section A — MIT License (Standard Terms)
+================================================================
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the conditions below:
+
+1. The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+2. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+   THE SOFTWARE.
+
+================================================================
+Section B — Additional Restriction: 3-Year Non-Copy of
+            Virtual GAS / Virtual Token Algorithm ("Addendum")
+================================================================
+
+This Addendum supplements Section A and applies ONLY to the
+"Protected Algorithm" defined below. Where there is any conflict
+between Section A and this Addendum, this Addendum prevails for
+the Protected Algorithm during the Restriction Period.
+
+1. Definitions
+
+   1.1 "Protected Algorithm" means the virtual-liquidity bonding-curve
+       mechanism implemented in this repository, including but not
+       limited to:
+       (a) the virtual GAS (virtualGAS / vGAS) and virtual Token
+           (virtualToken / vToken) reserve model;
+       (b) the derivation formulas in DuoLaunch._createSale:
+             vToken = T * p² / BPS_DENOM / (2p - BPS_DENOM)
+             vGAS   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
+           where T = Constants.TOTAL_SUPPLY, R = targetRaise,
+                 p = graduationBps;
+       (c) the SaleInfo struct fields virtualGAS / virtualToken and
+           any logic that computes effective reserves as
+             GASReserve   = virtualGAS + GASRaised
+             tokenReserve = virtualToken - tokensSold
+           and derives prices / quotes from them;
+       (d) the graduation parameterization (graduationBps / P,
+           2p - BPS_DENOM constraint, maxTokens = T * p / BPS_DENOM)
+           and any substantially similar re-implementation, translation
+           to another language, or parameter-renamed copy.
+       For avoidance of doubt, generic CP-AMM formula x*y=k in
+       CurveMath.getAmountOut / getAmountIn is NOT protected by
+       itself; only its combination with the virtual-reserve model
+       above is protected.
+
+   1.2 "Restriction Period" means three (3) calendar years starting
+       from the Effective Date defined in §5.
+
+   1.3 "Copy" means to reproduce, fork, port, or deploy the Protected
+       Algorithm in any other project, protocol, contract, or product,
+       whether verbatim or with immaterial modifications (renaming
+       variables/functions, changing constants, translating comments,
+       etc.) that retain the substance of the formulas/logic above.
+       Independent creation without reference to this Software is not
+       a "Copy" — the burden of proving independent creation lies with
+       the copier.
+
+2. Restriction
+
+   During the Restriction Period, no person may Copy the Protected
+   Algorithm without prior written authorization from the Licensor
+   (as defined in §8). Prohibited acts include but are not limited to:
+   deploying a separate on-chain contract that reuses the virtual
+   GAS / virtual Token mechanism, or distributing off-chain code that
+   implements it.
+
+   Normal use of THIS Software (deploying, interacting with, or
+   forking this repository as a whole to operate the Duo protocol
+   itself) is NOT restricted. Contributing improvements back to this
+   repository via pull request is encouraged and does not constitute
+   a prohibited Copy.
+
+3. Allowed Acts (not restricted)
+
+   (a) Study, academic citation, and commentary with attribution;
+   (b) Interfacing with / calling the deployed Duo contracts as a user
+       or integrator (e.g., router / frontend integration);
+   (c) Security review / audit of this Software.
+
+4. Expiry / Conversion
+
+   Upon expiry of the Restriction Period, the Protected Algorithm
+   automatically becomes licensed under Section A (pure MIT) without
+   further notice. No re-licensing action is required.
+
+5. Effective Date and Expiry Date
+
+   Effective Date: 2026-08-31
+   Expiry Date:    2029-08-31 (00:00 UTC, 3 years after Effective Date)
+   SPDX identifier for files containing the Protected Algorithm:
+     SPDX-License-Identifier: MIT
+     Additional-Restriction: Duo-3Y-Algorithm-NC (see LICENSE Section B)
+
+6. Enforcement
+
+   A violation of this Addendum is both a breach of license (copyright
+   infringement) and a breach of contract. The Licensor may seek
+   injunctive relief, takedown (e.g., DMCA), and damages. Willful
+   violation may be publicly disclosed.
+
+7. Severability
+
+   If any provision of this Addendum is held unenforceable, the
+   remaining provisions remain in full effect and Section A continues
+   to apply to all non-protected parts of the Software.
+
+8. Pseudonymous Licensor / Anonymity Protection
+
+   8.1 The "Licensor" / "Copyright Holder" is the pseudonymous
+       collective operating as "Duo Finance" that controls this
+       repository (github.com/DuoFinance/xDuo) and/or the canonical
+       deployments of the Software. This is an anonymous/pseudonymous
+       work within the meaning of the Berne Convention Art. 7(3) and
+       17 U.S.C. §302(c) (and equivalent laws in other jurisdictions).
+       Copyright subsists and is fully enforceable without disclosure
+       of any natural person's legal name.
+
+   8.2 No provision of this License requires the Licensor to reveal
+       the identity of any natural person. Attribution or notices to
+       the Licensor may be given via (in order of preference):
+       (a) a GitHub issue/PR in this repository,
+       (b) the contact published in this repository or its deployments,
+       (c) a transaction / message signed by the canonical deployer
+           or factory-owner address of the Duo protocol.
+       A response signed by the same key or posted from the same
+       GitHub organization is deemed a communication from the Licensor.
+
+   8.3 Rights under this License (including the right to grant
+       exceptions under §2 and to enforce under §6) may be exercised
+       by the Licensor directly, or by any assignee or designated
+       agent acting on the Licensor's behalf, without requiring the
+       Licensor to de-anonymize. On-chain control of the repository
+       or of the canonical DuoLaunch / factory deployer is prima facie
+       evidence of authority; the Licensee shall not challenge standing
+       solely on grounds of pseudonymity.
+
+   8.4 Pseudonymity does not limit liability protections: Section A
+       §2 disclaimer applies equally to the pseudonymous Licensor,
+       its contributors, and its agents. No personal liability attaches
+       to any undisclosed natural person by virtue of being part of
+       the collective; liability, if any, is limited to the Licensor
+       as defined above.
+
+   8.5 Term and anonymity are independent: protection under this
+       License lasts for the full copyright term (not shortened by
+       anonymity), and the 3-year Restriction Period in §5 runs
+       regardless of whether the Licensor later chooses to reveal
+       identities.

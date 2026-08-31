@@ -2,6 +2,7 @@
   "name": "uni2-legacy-neox",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "build": "hardhat compile",
     "test": "hardhat test && forge test",
