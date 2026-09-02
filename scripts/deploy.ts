@@ -71,7 +71,7 @@ async function main() {
 
   
   // Write deployed addresses to ui-v2/xcontract.json
-  const x_contractsPath = path.resolve(__dirname, "..", "..","ui-v2/deployedContracts/x_contracts.json");
+  const x_contractsPath = path.resolve(__dirname, "..", "..","ui-v2/apps/web/deployedContracts/x_contracts.json");
   const x_saved = {
     FACTORY: '0x'.concat(factoryAddress),
     ROUTER: '0x'.concat(routerAddress),
