@@ -70,8 +70,8 @@ async function main() {
   console.log(JSON.stringify(saved, null, 2));
 
   
-  // Write deployed addresses to ui-v2/xcontract.json
-  const x_contractsPath = path.resolve(__dirname, "..", "..","ui-v2/apps/web/deployedContracts/x_contracts.json");
+  // Write deployed addresses to ui-v2/packages/src/config/deployedContracts/x_contract.json
+  const x_contractsPath = path.resolve(__dirname, "..", "..","ui-v2/packages/config/src/deployedContracts/x_contracts.json");
   const x_saved = {
     FACTORY: '0x'.concat(factoryAddress),
     ROUTER: '0x'.concat(routerAddress),

@@ -65,13 +65,10 @@ function readDeployed(): DeployedData {
 
 function atomicWriteDeployed(data: DeployedData): void {
   const payload = JSON.stringify(data, null, 2) + "\n";
-  // 1) 
   writeFileSync(DEPLOYED_JSON_TMP, payload, "utf-8");
-  // 2) （）
   if (existsSync(DEPLOYED_JSON)) {
     copyFileSync(DEPLOYED_JSON, DEPLOYED_JSON_BAK);
   }
-  // 3) （ rename ）
   renameSync(DEPLOYED_JSON_TMP, DEPLOYED_JSON);
 }
 
@@ -149,22 +146,22 @@ async function main() {
   const Token = await ethers.getContractFactory("DuoToken");
   const token = await Token.deploy(totalSupply, treasury, owner, overrides);
   await token.waitForDeployment();
-  const tokenAddress = await token.getAddress();
+  const duoAddress = await token.getAddress();
 
-  console.log("DuoToken:", tokenAddress);
+  console.log("DuoToken:", duoAddress);
   console.log("Deploy tx:", token.deploymentTransaction()?.hash ?? "unknown");
 
   // 2. Create DUO-WGAS pair on existing UniswapV2Factory
   const factory = await ethers.getContractAt("UniswapV2Factory", factoryAddress);
-  const createPairTx = await factory.createPair(tokenAddress, chain.wgasAddress);
+  const createPairTx = await factory.createPair(duoAddress, chain.wgasAddress);
   await createPairTx.wait();
-  const pairAddress = await factory.getPair(tokenAddress, chain.wgasAddress);
-  if (!pairAddress || pairAddress === ethers.ZeroAddress) {
+  const DUOGAS: string = await factory.getPair(duoAddress, chain.wgasAddress);
+  if (!DUOGAS || DUOGAS === ethers.ZeroAddress) {
     throw new Error(
       `createPair returned zero/empty pair address. tx: ${createPairTx.hash ?? "unknown"}`
     );
   }
-  console.log("DUO-WGAS Pair:", pairAddress);
+  console.log("DUO-WGAS Pair:", DUOGAS);
   console.log("CreatePair tx:", createPairTx.hash);
 
   // 3. Deploy DuoSwapStaking for each LP token
@@ -180,7 +177,7 @@ async function main() {
 
   for (let i = 0; i < lpTokens.length; i += 1) {
     const lpToken = lpTokens[i];
-    const staking = await Staking.deploy(lpToken, tokenAddress, stakingOwner, overrides);
+    const staking = await Staking.deploy(lpToken, duoAddress, stakingOwner, overrides);
     await staking.waitForDeployment();
     const stakingAddress = await staking.getAddress();
     stakingAddresses.push(stakingAddress);
@@ -189,7 +186,7 @@ async function main() {
     console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
 
     if (i === 0 && shouldInitAllocation) {
-      const duoToken = await ethers.getContractAt("DuoToken", tokenAddress);
+      const duoToken = await ethers.getContractAt("DuoToken", duoAddress);
       const allocationTx = await duoToken.initializeAllocation(stakingAddress, overrides);
       await allocationTx.wait();
       console.log("initializeAllocation tx:", allocationTx.hash);
@@ -204,24 +201,25 @@ async function main() {
 
   // 4. Update deployed.json with new addresses (uppercase keys match existing schema)
   const stakingValue = stakingAddresses.join(",");
-  warnIfOverwrite("DUO", deployed.DUO, tokenAddress);
-  warnIfOverwrite("PAIR", deployed.PAIR, pairAddress);
+  warnIfOverwrite("DUO", deployed.DUO, duoAddress);
+  warnIfOverwrite("PAIR", deployed.PAIR, DUOGAS);
   warnIfOverwrite("STAKING", deployed.STAKING, stakingValue);
 
-  deployed.DUO = tokenAddress;
-  deployed.PAIR = pairAddress;
+  deployed.DUO = duoAddress;
+  deployed.PAIR = DUOGAS;
   deployed.STAKING = stakingValue;
   atomicWriteDeployed(deployed);
   console.log("Saved (atomically) to deployed.json");
 
-  // Write deployed addresses to ui-v2/xcontract.json
-  const x_contractsPath = path.resolve(__dirname, "..", "..", "ui-v2/apps/web/deployedContracts/x_contracts.json");
+  // Write deployed addresses to ui-v2/packages/config/src/deployedContracts/x_contracts.json
+  const x_contractsPath = path.resolve(__dirname, "..", "..", "ui-v2/packages/config/src/deployedContracts/x_contracts.json");
   const x_saved = {
     FACTORY:deployed.FACTORY,
     ROUTER:deployed.ROUTER,
     BONDING:deployed.BONDING,
-    DUO: tokenAddress,
-    STAKING:stakingValue
+    DUO: deployed.DUO,
+    DUOGAS: deployed.PAIR,
+    STAKING:deployed.STAKING
   };
 
   fs.writeFileSync(x_contractsPath, JSON.stringify(x_saved, null, 2) + "\n");
