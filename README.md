@@ -8,7 +8,6 @@ A conservative Uniswap V2 fork for NeoX deployment.
 - Keep `periphery` on the canonical router compiler line.
 - Avoid protocol-level anti-MEV modifications inside AMM contracts.
 - Support NeoX and optional anti-MEV/private orderflow at the RPC and transaction configuration layer.
-- Reuse the existing `EvmTokenDeployer`, `DuoSwapToken`, and single-pool `DuoSwapStaking` contracts from the source workspace.
 
 ## Compiler policy
 
@@ -94,7 +93,6 @@ DUO_STAKING_RECOVERY_AMOUNT=
 - The router expects the official NeoX wrapped gas token address in `*_WGAS_ADDRESS`.
 - The fork only localizes imports; it does not intentionally alter the AMM math or fee logic.
 - `DuoSwapStaking` reads LP token addresses from `DUO_STAKING_POOLS`, using the `LP` part of `LP:ALLOC` entries.
-- Scripts prefer `DUO_*` env vars. `OS_*` aliases are still accepted for backward compatibility.
 - `DuoSwapStaking` and `DuoSwapStakingFactory` do not support Fee-on-Transfer (FoT) staking/reward tokens. Transfers must settle at the exact requested amount, otherwise transactions revert.
 
 

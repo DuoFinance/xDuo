@@ -73,9 +73,9 @@ async function main() {
   // Write deployed addresses to ui-v2/packages/src/config/deployedContracts/x_contract.json
   const x_contractsPath = path.resolve(__dirname, "..", "..","ui-v2/packages/config/src/deployedContracts/x_contracts.json");
   const x_saved = {
-    FACTORY: '0x'.concat(factoryAddress),
-    ROUTER: '0x'.concat(routerAddress),
-    BONDING: '0x'.concat(DuoLaunchAddress),
+    FACTORY: factoryAddress,
+    ROUTER: routerAddress,
+    BONDING: DuoLaunchAddress,
   };
 
   fs.writeFileSync(x_contractsPath, JSON.stringify(x_saved, null, 2) + "\n");
