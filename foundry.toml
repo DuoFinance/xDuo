@@ -1,6 +1,7 @@
 [profile.default]
 src = "contracts/duoLaunch"
 out = "out"
+cache_path = "cache-forge"
 libs = ["lib", "node_modules"]
 test = "testsol"
 solc = "0.8.24"

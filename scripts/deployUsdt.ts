@@ -2,7 +2,7 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
 
-export async function deployTokenDeployer() {
+async function main() {
   const [deployer] = await ethers.getSigners();
   const chain = resolveChainByNetwork(hre.network.name);
 
@@ -19,15 +19,17 @@ export async function deployTokenDeployer() {
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
-  const TokenDeployer = await ethers.getContractFactory("DuoTokenDeployer");
-  const deployerContract = await TokenDeployer.deploy(overrides);
-  await deployerContract.waitForDeployment();
+  const USDT = await ethers.getContractFactory("contracts/duo/MockUSDT.sol:MockUSDT");
+  const usdt = await USDT.deploy(overrides);
+  await usdt.waitForDeployment();
 
-  console.log("DuoTokenDeployer:", await deployerContract.getAddress());
-  console.log("Deploy tx:", deployerContract.deploymentTransaction()?.hash ?? "unknown");
+  const usdtAddress = await usdt.getAddress();
+  console.log("MockUSDT:", usdtAddress);
+  console.log("Deploy tx:", usdt.deploymentTransaction()?.hash ?? "unknown");
+  console.log("Decimals: 4, Total supply: 1000000 USDT (10000000000 base units)");
 }
 
-// main().catch((error) => {
-//   console.error(error);
-//   process.exitCode = 1;
-// });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -23,7 +23,10 @@
     "deploy:staking-factory:mainnet": "hardhat run scripts/deployStakingFactory.ts --network neoxMainnet",
     "manage:staking:legacy": "hardhat run scripts/manageStaking.ts --network legacy",
     "manage:staking:testnet": "hardhat run scripts/manageStaking.ts --network neoxTestnet",
-    "manage:staking:mainnet": "hardhat run scripts/manageStaking.ts --network neoxMainnet"
+    "manage:staking:mainnet": "hardhat run scripts/manageStaking.ts --network neoxMainnet",
+    "deploy:usdt:legacy": "hardhat run scripts/deployUsdt.ts --network legacy",
+    "deploy:usdt:testnet": "hardhat run scripts/deployUsdt.ts --network neoxTestnet",
+    "deploy:usdt:mainnet": "hardhat run scripts/deployUsdt.ts --network neoxMainnet"
   },
   "overrides": {
     "adm-zip": ">=0.6.0",

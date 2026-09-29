@@ -297,9 +297,9 @@ describe("DuoLaunch × Uniswap V2 Router Integration", function () {
   });
 
   describe("Different Graduation Ratios", function () {
-    it("should work with minimum graduation ratio (P=6001)", async function () {
+    it("should work with minimum graduation ratio (P=6000)", async function () {
       await deployInfra();
-      const minBps = 6001;
+      const minBps = 6000;
       const tx = await duoLaunch.createSale("Min Grad", "MIN", minBps, ethers.parseEther("1000"), "", "", "", "");
       const receipt = await tx.wait();
       const log = receipt!.logs

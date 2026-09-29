@@ -331,16 +331,16 @@ contract DuoLaunchGraduationTest is Test {
     // ─── Scenario 6:  Graduation boundary — minimum valid P ──
 
     function test_Graduation_MinimumP() public {
-        uint256 minP = 6001;
+        uint256 minP = 6000;
         vm.prank(alice);
         tokenAddr = pump.createSale("MinP", "MINP", minP, SMALL_TARGET, "", "", "", "");
 
         _buyToGraduation(alice);
 
         SaleData memory s = _sale();
-        assertTrue(s.graduated, "P=6001 should graduate");
+        assertTrue(s.graduated, "P=6000 should graduate");
         uint256 maxT = _maxTokens(s);
-        assertTrue(s.tokensSold <= maxT, "cap check: P=6001");
+        assertTrue(s.tokensSold <= maxT, "cap check: P=6000");
     }
 
     // ─── Scenario 7:  Graduation boundary — maximum valid P ──
@@ -416,7 +416,7 @@ contract DuoLaunchGraduationTest is Test {
     // ─── Scenario 10:  Fuzz — random P & targetRaise parameters ─
 
     function testFuzz_Graduation_Params(uint16 P_, uint64 targetRaise_) public {
-        vm.assume(P_ >= 6001 && P_ <= 9999);
+        vm.assume(P_ >= 6000 && P_ <= 9999);
         vm.assume(targetRaise_ >= 0.01 ether && targetRaise_ <= 10_000 ether);
 
         vm.prank(alice);

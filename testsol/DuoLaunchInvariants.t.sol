@@ -21,7 +21,7 @@ contract MockWETH {
         balanceOf[to] += amount;
         return true;
     }
-    function approve(address, uint256) external returns (bool) { return true; }
+    function approve(address, uint256) external pure returns (bool) { return true; }
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
@@ -307,7 +307,7 @@ contract DuoLaunchInvariants is Test {
     // ══════════════════════════════════════════════════════════
 
     function test_GraduationCap_Boundary() public {
-        uint256[4] memory bps = [uint256(6001), 6500, 8000, 9800];
+        uint256[5] memory bps = [uint256(6000), 6001, 6500, 8000, 9999];
         for (uint256 i = 0; i < bps.length; i++) {
             vm.prank(alice);
             address t = pump.createSale("T", "T", bps[i], TARGET, "", "", "", "");
@@ -595,7 +595,7 @@ contract DuoLaunchInvariants is Test {
     //  getAmountOut and getAmountIn are inverses (approx.)
     // ══════════════════════════════════════════════════════════
 
-    function test_CurveMathInverse() public {
+    function test_CurveMathInverse() public view {
         SaleData memory s = _sale();
         uint256 R = s.virtualGAS;
         uint256 T = s.virtualToken;
@@ -1072,7 +1072,7 @@ contract DuoLaunchInvariants is Test {
 
     // ─── decimals() override ────────────────────────────────
 
-    function test_Token_Decimals() public {
+    function test_Token_Decimals() public view {
         assertEq(token.decimals(), 18, "token decimals should match Constants");
         assertEq(token.name(), "TestToken", "token name");
         assertEq(token.symbol(), "TST", "token symbol");
