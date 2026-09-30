@@ -2,9 +2,16 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
-import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { saveXContracts } from "./xContracts";
+import {
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "fs";
 import path from "path";
-import fs from 'fs';
+import fs from "fs";
 
 const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
 const DEPLOYED_JSON_TMP = `${DEPLOYED_JSON}.tmp`;
@@ -23,7 +30,12 @@ type DeployedData = {
 function parseBool(value: string | undefined, defaultValue = false): boolean {
   if (value === undefined) return defaultValue;
   const normalized = value.trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "y";
+  return (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "y"
+  );
 }
 
 function parsePoolConfigs(raw: string | undefined): string[] {
@@ -38,7 +50,7 @@ function parsePoolConfigs(raw: string | undefined): string[] {
 function requireAddress(label: string, value: unknown): string {
   if (typeof value !== "string" || !ethers.isAddress(value)) {
     throw new Error(
-      `Invalid or missing address for "${label}" in deployed.json. Got: ${JSON.stringify(value)}`
+      `Invalid or missing address for "${label}" in deployed.json. Got: ${JSON.stringify(value)}`,
     );
   }
   return value;
@@ -47,7 +59,7 @@ function requireAddress(label: string, value: unknown): string {
 function readDeployed(): DeployedData {
   if (!existsSync(DEPLOYED_JSON)) {
     throw new Error(
-      `deployed.json not found at ${DEPLOYED_JSON}. Run the base deployment script first.`
+      `deployed.json not found at ${DEPLOYED_JSON}. Run the base deployment script first.`,
     );
   }
   let raw: string;
@@ -59,7 +71,9 @@ function readDeployed(): DeployedData {
   try {
     return JSON.parse(raw) as DeployedData;
   } catch (err) {
-    throw new Error(`deployed.json is not valid JSON: ${(err as Error).message}`);
+    throw new Error(
+      `deployed.json is not valid JSON: ${(err as Error).message}`,
+    );
   }
 }
 
@@ -72,7 +86,11 @@ function atomicWriteDeployed(data: DeployedData): void {
   renameSync(DEPLOYED_JSON_TMP, DEPLOYED_JSON);
 }
 
-function warnIfOverwrite(label: string, existing: unknown, next: unknown): void {
+function warnIfOverwrite(
+  label: string,
+  existing: unknown,
+  next: unknown,
+): void {
   if (
     existing !== undefined &&
     existing !== null &&
@@ -80,7 +98,7 @@ function warnIfOverwrite(label: string, existing: unknown, next: unknown): void 
     existing !== next
   ) {
     console.warn(
-      `[WARN] Overwriting deployed.json["${label}"]: ${JSON.stringify(existing)} → ${JSON.stringify(next)}`
+      `[WARN] Overwriting deployed.json["${label}"]: ${JSON.stringify(existing)} → ${JSON.stringify(next)}`,
     );
   }
 }
@@ -92,7 +110,7 @@ async function main() {
   if (hre.network.name !== "hardhat") {
     if (!getRpcUrl(chain) || !chain.chainId || !chain.deployerPrivateKey) {
       throw new Error(
-        `Missing chain config for network "${hre.network.name}". Check .env network values.`
+        `Missing chain config for network "${hre.network.name}". Check .env network values.`,
       );
     }
   }
@@ -100,23 +118,36 @@ async function main() {
   const deployed = readDeployed();
   const factoryAddress = requireAddress("FACTORY", deployed.FACTORY);
 
-  const totalSupply = ethers.parseUnits(requireEnvByNetwork(hre.network.name, "TOTAL_SUPPLY"), 18);
+  const totalSupply = ethers.parseUnits(
+    requireEnvByNetwork(hre.network.name, "TOTAL_SUPPLY"),
+    18,
+  );
   const treasury = requireEnvByNetwork(hre.network.name, "TREASURY_ADDRESS");
   if (!ethers.isAddress(treasury)) {
     throw new Error(`Invalid TREASURY_ADDRESS: ${treasury}`);
   }
-  const owner = getEnvByNetwork(hre.network.name, "TOKEN_OWNER") ?? deployer.address;
+  const owner =
+    getEnvByNetwork(hre.network.name, "TOKEN_OWNER") ?? deployer.address;
   if (!ethers.isAddress(owner)) {
     throw new Error(`Invalid TOKEN_OWNER: ${owner}`);
   }
-  const stakingOwner = getEnvByNetwork(hre.network.name, "STAKING_OWNER") ?? deployer.address;
+  const stakingOwner =
+    getEnvByNetwork(hre.network.name, "STAKING_OWNER") ?? deployer.address;
   if (!ethers.isAddress(stakingOwner)) {
     throw new Error(`Invalid STAKING_OWNER: ${stakingOwner}`);
   }
-  const rewardBlocks = BigInt(getEnvByNetwork(hre.network.name, "STAKING_REWARD_BLOCKS") ?? "0");
-  const shouldInitAllocation = parseBool(getEnvByNetwork(hre.network.name, "INIT_ALLOCATION"));
-  const shouldStartRewards = parseBool(getEnvByNetwork(hre.network.name, "INIT_REWARDS"));
-  const lpTokens = parsePoolConfigs(getEnvByNetwork(hre.network.name, "STAKING_POOLS"));
+  const rewardBlocks = BigInt(
+    getEnvByNetwork(hre.network.name, "STAKING_REWARD_BLOCKS") ?? "0",
+  );
+  const shouldInitAllocation = parseBool(
+    getEnvByNetwork(hre.network.name, "INIT_ALLOCATION"),
+  );
+  const shouldStartRewards = parseBool(
+    getEnvByNetwork(hre.network.name, "INIT_REWARDS"),
+  );
+  const lpTokens = parsePoolConfigs(
+    getEnvByNetwork(hre.network.name, "STAKING_POOLS"),
+  );
 
   if (!chain.wgasAddress) {
     throw new Error("Missing WGAS address.");
@@ -132,7 +163,10 @@ async function main() {
 
   console.log("Network:", hre.network.name);
   console.log("Deployer:", deployer.address);
-  console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
+  console.log(
+    "RPC mode:",
+    chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC",
+  );
   console.log("Treasury:", treasury);
   console.log("Owner:", owner);
   console.log("Total supply:", ethers.formatUnits(totalSupply, 18));
@@ -152,13 +186,16 @@ async function main() {
   console.log("Deploy tx:", token.deploymentTransaction()?.hash ?? "unknown");
 
   // 2. Create DUO-WGAS pair on existing UniswapV2Factory
-  const factory = await ethers.getContractAt("UniswapV2Factory", factoryAddress);
+  const factory = await ethers.getContractAt(
+    "UniswapV2Factory",
+    factoryAddress,
+  );
   const createPairTx = await factory.createPair(duoAddress, chain.wgasAddress);
   await createPairTx.wait();
   const DUOGAS: string = await factory.getPair(duoAddress, chain.wgasAddress);
   if (!DUOGAS || DUOGAS === ethers.ZeroAddress) {
     throw new Error(
-      `createPair returned zero/empty pair address. tx: ${createPairTx.hash ?? "unknown"}`
+      `createPair returned zero/empty pair address. tx: ${createPairTx.hash ?? "unknown"}`,
     );
   }
   console.log("DUO-WGAS Pair:", DUOGAS);
@@ -169,7 +206,9 @@ async function main() {
     throw new Error("No LP tokens provided in STAKING_POOLS.");
   }
   if (shouldStartRewards && rewardBlocks <= 0n) {
-    throw new Error("STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.");
+    throw new Error(
+      "STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.",
+    );
   }
 
   const Staking = await ethers.getContractFactory("DuoSwapStaking");
@@ -177,17 +216,28 @@ async function main() {
 
   for (let i = 0; i < lpTokens.length; i += 1) {
     const lpToken = lpTokens[i];
-    const staking = await Staking.deploy(lpToken, duoAddress, stakingOwner, overrides);
+    const staking = await Staking.deploy(
+      lpToken,
+      duoAddress,
+      stakingOwner,
+      overrides,
+    );
     await staking.waitForDeployment();
     const stakingAddress = await staking.getAddress();
     stakingAddresses.push(stakingAddress);
 
-    console.log('DuoSwapStaking for %s:', lpToken, stakingAddress);
-    console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
+    console.log("DuoSwapStaking for %s:", lpToken, stakingAddress);
+    console.log(
+      "Deploy tx:",
+      staking.deploymentTransaction()?.hash ?? "unknown",
+    );
 
     if (i === 0 && shouldInitAllocation) {
       const duoToken = await ethers.getContractAt("DuoToken", duoAddress);
-      const allocationTx = await duoToken.initializeAllocation(stakingAddress, overrides);
+      const allocationTx = await duoToken.initializeAllocation(
+        stakingAddress,
+        overrides,
+      );
       await allocationTx.wait();
       console.log("initializeAllocation tx:", allocationTx.hash);
     }
@@ -199,33 +249,60 @@ async function main() {
     }
   }
 
+  if (hre.network.name !== "hardhat") {
+    if (!getRpcUrl(chain) || !chain.chainId || !chain.deployerPrivateKey) {
+      throw new Error(
+        `Missing chain config for network "${hre.network.name}". Check .env network values.`,
+      );
+    }
+  }
+
+  console.log("Network:", hre.network.name);
+  console.log("Deployer:", deployer.address);
+  console.log(
+    "RPC mode:",
+    chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC",
+  );
+
+  //const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
+  const USDT = await ethers.getContractFactory(
+    "contracts/duo/MockUSDT.sol:MockUSDT",
+  );
+  const usdt = await USDT.deploy(overrides);
+  await usdt.waitForDeployment();
+
+  const usdtAddress = await usdt.getAddress();
+  console.log("MockUSDT:", usdtAddress);
+  console.log("Deploy tx:", usdt.deploymentTransaction()?.hash ?? "unknown");
+  console.log(
+    "Decimals: 4, Total supply: 1000000 USDT (10000000000 base units)",
+  );
+
   // 4. Update deployed.json with new addresses (uppercase keys match existing schema)
   const stakingValue = stakingAddresses.join(",");
+  warnIfOverwrite("USDT", deployed.USDT, usdtAddress);
   warnIfOverwrite("DUO", deployed.DUO, duoAddress);
   warnIfOverwrite("PAIR", deployed.PAIR, DUOGAS);
   warnIfOverwrite("STAKING", deployed.STAKING, stakingValue);
 
+  deployed.USDT = usdtAddress;
   deployed.DUO = duoAddress;
   deployed.PAIR = DUOGAS;
   deployed.STAKING = stakingValue;
   atomicWriteDeployed(deployed);
   console.log("Saved (atomically) to deployed.json");
 
-  // Write deployed addresses to ui-v2/packages/config/src/deployedContracts/x_contracts.json
-  const x_contractsPath = path.resolve(__dirname, "..", "..", "ui-v2/packages/config/src/deployedContracts/x_contracts.json");
-  const x_saved = {
-    FACTORY:deployed.FACTORY,
-    ROUTER:deployed.ROUTER,
-    BONDING:deployed.BONDING,
-    DUO: deployed.DUO,
-    DUOGAS: deployed.PAIR,
-    STAKING:deployed.STAKING
-  };
-
-  fs.writeFileSync(x_contractsPath, JSON.stringify(x_saved, null, 2) + "\n");
-  console.log(`\n[Deploy Duo and Staking] Saved Duo and Staking contract addresses to ${x_contractsPath}`);
-  console.log(JSON.stringify(x_saved, null, 2));
-
+  // Sync to ui-v2/packages/config/src/deployedContracts/ (per-mode + legacy).
+  // Merge-only: FACTORY/ROUTER/BONDING from the base deploy are preserved.
+  saveXContracts(
+    {
+      USDT: usdtAddress,
+      DUO: duoAddress,
+      DUOGAS: DUOGAS,
+      STAKING: stakingValue,
+    },
+    hre.network.name,
+  );
 }
 
 main().catch((error) => {
