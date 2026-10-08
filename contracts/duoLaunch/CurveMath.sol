@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// Additional Restriction: Duo 3Y Algorithm Non-Copy (virtual GAS / virtual Token) — see LICENSE Section B. Expires 2029-08-31.
 // Note: generic x*y=k in CurveMath alone is not protected; only its combination with the virtual-reserve model is.
 pragma solidity ^0.8.24;
 

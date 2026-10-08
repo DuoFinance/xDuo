@@ -1,164 +1,158 @@
-MIT License with 3-Year Algorithm Non-Copy Addendum
-Copyright (c) 2026 Duo Finance (https://github.com/DuoFinance/xDuo)
+Duo Bonding Curve Temporary Commercial Restriction
+Copyright (c) 2026 Duo Finance
+
+IMPORTANT: During the Restriction Period in Section B, this is not an
+OSI-approved Open Source license for the Protected Algorithm.
 
 ================================================================
-Section A — MIT License (Standard Terms)
+Section A — MIT License Outside the Restriction Period
 ================================================================
+
+Except during the Restriction Period defined in Section B, the following
+MIT License applies to copyrightable software and documentation in this
+repository for which the copyright holder has authority to grant it,
+including the Protected Algorithm:
+
+MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the conditions below:
+furnished to do so, subject to the following conditions:
 
-1. The above copyright notice and this permission notice shall be included in
-   all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-2. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-   THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Third-party components, including vendored or otherwise separately licensed
+software, are not relicensed by this License and remain subject to their
+respective license terms and notices.
 
 ================================================================
-Section B — Additional Restriction: 3-Year Non-Copy of
-            Virtual GAS / Virtual Token Algorithm ("Addendum")
+Section B — Temporary Commercial Restriction on the Virtual-Reserve
+Bonding-Curve Algorithm
 ================================================================
 
-This Addendum supplements Section A and applies ONLY to the
-"Protected Algorithm" defined below. Where there is any conflict
-between Section A and this Addendum, this Addendum prevails for
-the Protected Algorithm during the Restriction Period.
+1. Protected Algorithm
 
-1. Definitions
+   "Protected Algorithm" means only the virtual-reserve bonding-curve
+   algorithm implemented in the DuoLaunch software, comprising the
+   combination of:
 
-   1.1 "Protected Algorithm" means the virtual-liquidity bonding-curve
-       mechanism implemented in this repository, including but not
-       limited to:
-       (a) the virtual GAS (virtualGAS / vGAS) and virtual Token
-           (virtualToken / vToken) reserve model;
-       (b) the derivation formulas in DuoLaunch._createSale:
-             vToken = T * p² / BPS_DENOM / (2p - BPS_DENOM)
-             vGAS   = R * (BPS_DENOM - p) / (2p - BPS_DENOM)
-           where T = Constants.TOTAL_SUPPLY, R = targetRaise,
-                 p = graduationBps;
-       (c) the SaleInfo struct fields virtualGAS / virtualToken and
-           any logic that computes effective reserves as
-             GASReserve   = virtualGAS + GASRaised
-             tokenReserve = virtualToken - tokensSold
-           and derives prices / quotes from them;
-       (d) the graduation parameterization (graduationBps / P,
-           2p - BPS_DENOM constraint, maxTokens = T * p / BPS_DENOM)
-           and any substantially similar re-implementation, translation
-           to another language, or parameter-renamed copy.
-       For avoidance of doubt, generic CP-AMM formula x*y=k in
-       CurveMath.getAmountOut / getAmountIn is NOT protected by
-       itself; only its combination with the virtual-reserve model
-       above is protected.
+   (a) virtual native-asset and virtual token reserves parameterized by a
+       graduation threshold p, target raise R, and token supply T, including
+       formulas equivalent to:
 
-   1.2 "Restriction Period" means three (3) calendar years starting
-       from the Effective Date defined in §5.
+         vToken = T * p^2 / (10000 * (2p - 10000))
+         vNative = R * (10000 - p) / (2p - 10000)
 
-   1.3 "Copy" means to reproduce, fork, port, or deploy the Protected
-       Algorithm in any other project, protocol, contract, or product,
-       whether verbatim or with immaterial modifications (renaming
-       variables/functions, changing constants, translating comments,
-       etc.) that retain the substance of the formulas/logic above.
-       Independent creation without reference to this Software is not
-       a "Copy" — the burden of proving independent creation lies with
-       the copier.
+   (b) buy and sell pricing based on effective reserves equivalent to:
 
-2. Restriction
+         nativeReserve = vNative + nativeRaised
+         tokenReserve  = vToken - tokensSold
 
-   During the Restriction Period, no person may Copy the Protected
-   Algorithm without prior written authorization from the Licensor
-   (as defined in §8). Prohibited acts include but are not limited to:
-   deploying a separate on-chain contract that reuses the virtual
-   GAS / virtual Token mechanism, or distributing off-chain code that
-   implements it.
+   (c) using those reserves and graduation parameters together to price
+       trades and graduate liquidity to a constant-product pool.
 
-   Normal use of THIS Software (deploying, interacting with, or
-   forking this repository as a whole to operate the Duo protocol
-   itself) is NOT restricted. Contributing improvements back to this
-   repository via pull request is encouraged and does not constitute
-   a prohibited Copy.
+   The Protected Algorithm is asset- and chain-agnostic. Replacing the
+   native asset with another blockchain's native token, a wrapped token, or
+   another asset, or changing names, constants, programming languages, or
+   deployment chains, does not by itself place an otherwise derivative
+   implementation outside this definition.
 
-3. Allowed Acts (not restricted)
+   The generic constant-product formula x*y=k, by itself, is not the
+   Protected Algorithm. This Section applies only to the algorithm described
+   above and its implementations, not to the repository, DuoLaunch contract,
+   interfaces, constants, or other code as a whole. It does not claim
+   exclusive rights in mathematical ideas or methods as such, or in
+   implementations independently created without copying protectable
+   expression from this Software. A change in asset, chain, naming, or
+   language alone does not establish independent creation.
 
-   (a) Study, academic citation, and commentary with attribution;
-   (b) Interfacing with / calling the deployed Duo contracts as a user
-       or integrator (e.g., router / frontend integration);
-   (c) Security review / audit of this Software.
+2. Restriction Period
 
-4. Expiry / Conversion
+   Effective Date: 2026-10-31 00:00 UTC
+   Change Date:    2029-10-31 00:00 UTC
 
-   Upon expiry of the Restriction Period, the Protected Algorithm
-   automatically becomes licensed under Section A (pure MIT) without
-   further notice. No re-licensing action is required.
+   Before the Effective Date, Section A applies to the Protected Algorithm.
+   The "Restriction Period" begins on the Effective Date and ends
+   immediately before the Change Date. The Change Date applies to this
+   release and all versions of the Protected Algorithm distributed under
+   this License. Earlier releases remain subject to the license terms
+   distributed with those releases.
 
-5. Effective Date and Expiry Date
+3. Permission During the Restriction Period
 
-   Effective Date: 2026-08-31
-   Expiry Date:    2029-08-31 (00:00 UTC, 3 years after Effective Date)
-   SPDX identifier for files containing the Protected Algorithm:
-     SPDX-License-Identifier: MIT
-     Additional-Restriction: Duo-3Y-Algorithm-NC (see LICENSE Section B)
+   Subject to this Section B, you may use, copy, study, modify, create
+   derivative works of, and distribute the Protected Algorithm and
+   implementations derived from it for non-commercial purposes, including
+   non-commercial testing, research, education, and deployment. You must
+   retain this License and applicable copyright notices in copies or
+   substantial portions of the Protected Algorithm.
 
-6. Enforcement
+   "Commercial purpose" means an activity primarily intended for or
+   directed toward commercial advantage or monetary compensation. During
+   the Restriction Period, you may not, without prior written permission
+   from the copyright holder:
 
-   A violation of this Addendum is both a breach of license (copyright
-   infringement) and a breach of contract. The Licensor may seek
-   injunctive relief, takedown (e.g., DMCA), and damages. Willful
-   violation may be publicly disclosed.
+   (a) deploy or operate the Protected Algorithm or an implementation
+       derived from it in a commercial product, protocol, or service; or
 
-7. Severability
+   (b) create, commission, distribute, offer, sell, license, or otherwise
+       provide a derivative implementation for a commercial purpose.
 
-   If any provision of this Addendum is held unenforceable, the
-   remaining provisions remain in full effect and Section A continues
-   to apply to all non-protected parts of the Software.
+   Commercial integration with or use of the canonical Duo contracts as a
+   user or frontend/router integrator is not, by itself, deployment of a
+   separate implementation of the Protected Algorithm.
 
-8. Pseudonymous Licensor / Anonymity Protection
+4. Change License
 
-   8.1 The "Licensor" / "Copyright Holder" is the pseudonymous
-       collective operating as "Duo Finance" that controls this
-       repository (github.com/DuoFinance/xDuo) and/or the canonical
-       deployments of the Software. This is an anonymous/pseudonymous
-       work within the meaning of the Berne Convention Art. 7(3) and
-       17 U.S.C. §302(c) (and equivalent laws in other jurisdictions).
-       Copyright subsists and is fully enforceable without disclosure
-       of any natural person's legal name.
+   Effective on the Change Date, the Protected Algorithm and all versions
+   of it distributed under this License are additionally and automatically
+   licensed under the MIT License in Section A. No further notice or action
+   is required. After the Change Date, the restrictions in Section B no
+   longer apply to the Protected Algorithm.
 
-   8.2 No provision of this License requires the Licensor to reveal
-       the identity of any natural person. Attribution or notices to
-       the Licensor may be given via (in order of preference):
-       (a) a GitHub issue/PR in this repository,
-       (b) the contact published in this repository or its deployments,
-       (c) a transaction / message signed by the canonical deployer
-           or factory-owner address of the Duo protocol.
-       A response signed by the same key or posted from the same
-       GitHub organization is deemed a communication from the Licensor.
+5. Other Terms
 
-   8.3 Rights under this License (including the right to grant
-       exceptions under §2 and to enforce under §6) may be exercised
-       by the Licensor directly, or by any assignee or designated
-       agent acting on the Licensor's behalf, without requiring the
-       Licensor to de-anonymize. On-chain control of the repository
-       or of the canonical DuoLaunch / factory deployer is prima facie
-       evidence of authority; the Licensee shall not challenge standing
-       solely on grounds of pseudonymity.
+   Section A continues to apply to software and documentation outside the
+   Protected Algorithm for which the copyright holder has authority to grant
+   it. Except for the express temporary restrictions in this Section B,
+   this License does not limit rights granted under Section A.
 
-   8.4 Pseudonymity does not limit liability protections: Section A
-       §2 disclaimer applies equally to the pseudonymous Licensor,
-       its contributors, and its agents. No personal liability attaches
-       to any undisclosed natural person by virtue of being part of
-       the collective; liability, if any, is limited to the Licensor
-       as defined above.
+   THE PROTECTED ALGORITHM IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+   CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY
+   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
 
-   8.5 Term and anonymity are independent: protection under this
-       License lasts for the full copyright term (not shortened by
-       anonymity), and the 3-year Restriction Period in §5 runs
-       regardless of whether the Licensor later chooses to reveal
-       identities.
+   This License does not grant rights to trademarks, logos, or other
+   branding. Any permission under this License must be in writing from a
+   party authorized to grant it.
+
+6. Pseudonymous Copyright Holder and Notices
+
+   "Duo Finance" is the pseudonym used by the person or entity acting as
+   copyright holder for this Software. This License does not require that
+   person's legal name to be published as a condition of communicating
+   under that pseudonym.
+
+   Requests for permission under Section B and other license notices may
+   be directed to the copyright holder through a GitHub issue or pull
+   request in this repository, or through contact information published
+   in this repository or the canonical Duo deployments. A response is
+   effective only if made by a person authorized to act for the copyright
+   holder.
+
+   This section describes the pseudonym and contact channels used by the
+   copyright holder. It does not determine legal ownership, authority,
+   standing, or evidentiary effect, which depend on applicable law and
+   facts.

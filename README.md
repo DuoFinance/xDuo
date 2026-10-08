@@ -137,11 +137,8 @@ npm run deploy:usdt:mainnet  # MockUSDT (test token) → neoxMainnet
 
 ## License
 
-MIT License with 3-Year Algorithm Non-Copy Addendum — see [`LICENSE`](./LICENSE).
+See [`LICENSE`](./LICENSE) for the licensing terms. During the restriction period, only the virtual-reserve bonding-curve algorithm is subject to temporary commercial-use restrictions; other code for which the copyright holder can grant rights is MIT-licensed. Third-party components retain their own licenses.
 
-- **Base**: MIT (Section A) for the whole repository.
-- **Additional restriction (Section B)**: The Virtual GAS / Virtual Token (vGAS / vToken) bonding-curve algorithm — including `SaleInfo.virtualGAS / virtualToken`, formulas `vToken = T·p² / BPS_DENOM / (2p-BPS_DENOM)` and `vGAS = R·(BPS_DENOM-p)/(2p-BPS_DENOM)`, and effective reserves `GASReserve = virtualGAS+GASRaised` / `tokenReserve = virtualToken-tokensSold` — **may not be copied/forked/ported to another project within 3 years** without written approval from the Licensor.
-  - Effective: 2026-08-31 → Expires: 2029-08-31 (auto-converts to pure MIT after expiry).
-  - Applies to `contracts/duoLaunch/DuoLaunch.sol`, `CurveMath.sol`, `Constants.sol`, `IDuo.sol`. Generic `x*y=k` alone is not restricted.
-  - Normal use of *this* repo and PRs back to it are allowed.
-- **Pseudonymous licensor (Section B §8)**: Licensor is the pseudonymous collective "Duo Finance" controlling `github.com/DuoFinance/xDuo` and/or the canonical deployer addresses. No natural-person disclosure is required; rights are enforceable without doxxing (Berne Art. 7(3), 17 U.S.C. §302(c)). Notices may be served via GitHub issue/PR or a message signed by the canonical deployer/factory-owner key, and enforcement may be via a designated agent.
+- **Effective:** 2026-10-31 through 2029-10-30. Starting 2029-10-31, the algorithm is automatically licensed under MIT.
+- **Restricted scope:** the combination of virtual reserves, reserve-based buy/sell pricing, and graduation parameterization described in Section B. It is asset- and chain-agnostic. Generic `x*y=k` math, the DuoLaunch contract as a whole, interfaces, and other code are not restricted as such.
+- **During the restriction period:** non-commercial use and derivative works are allowed. Commercial deployment/operation and providing a derivative implementation for a commercial purpose require prior written permission.
