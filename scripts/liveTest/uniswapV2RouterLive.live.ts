@@ -3,6 +3,7 @@ const { ethers } = hre;
 import assert from "assert";
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const ROUTER_IFACE  = "contracts/interfaces/IUniswapV2Router02.sol:IUniswapV2Router02";
 const FACTORY_IFACE = "contracts/interfaces/IUniswapV2Factory.sol:IUniswapV2Factory";
@@ -25,9 +26,7 @@ async function deadline(minutes = 30): Promise<number> {
 }
 
 async function main() {
-  const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "..","deployed.json"), "utf8")
-  );
+  const deployed = loadDeployed();
   const network = hre.network.name;
 
   console.log("═══════════════════════════════════════════════════");
@@ -48,14 +47,14 @@ async function main() {
 
   // 1 ── Connect to Router
   console.log("1. Connecting to Router...");
-  const code = await ethers.provider.getCode(deployed.router);
-  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.router}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
-  const router = await ethers.getContractAt(ROUTER_IFACE, deployed.router);
+  const code = await ethers.provider.getCode(deployed.ROUTER);
+  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.ROUTER}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
+  const router = await ethers.getContractAt(ROUTER_IFACE, deployed.ROUTER);
   assert.strictEqual(
     (await router.getAddress()).toLowerCase(),
-    deployed.router.toLowerCase()
+    deployed.ROUTER.toLowerCase()
   );
-  console.log(`   Router: ${deployed.router} ✓\n`);
+  console.log(`   Router: ${deployed.ROUTER} ✓\n`);
 
   // 2 ── Configuration
   console.log("2. Configuration...");
@@ -63,8 +62,8 @@ async function main() {
   const routerWeth    = await router.WETH();
   console.log(`   factory: ${routerFactory}`);
   console.log(`   WETH   : ${routerWeth}`);
-  assert.strictEqual(routerFactory.toLowerCase(), deployed.factory.toLowerCase());
-  assert.strictEqual(routerWeth.toLowerCase(),    deployed.wgas.toLowerCase());
+  assert.strictEqual(routerFactory.toLowerCase(), deployed.FACTORY.toLowerCase());
+  assert.strictEqual(routerWeth.toLowerCase(),    deployed.WGAS.toLowerCase());
   console.log("   ✓\n");
 
   // 3 ── Library / pure functions
@@ -97,7 +96,7 @@ async function main() {
 
   // 4 ── Explore factory pairs & path queries
   console.log("4. Factory pairs & path queries...");
-  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);
+  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.FACTORY);
   const pairsLen = Number(await factory.allPairsLength());
   console.log(`   Pairs in factory: ${pairsLen}`);
 
@@ -162,7 +161,7 @@ async function main() {
   if (ethBalance < MIN_BALANCE) {
     console.log("   Insufficient ETH — skip.\n");
   } else {
-    const wgas  = deployed.wgas;
+    const wgas  = deployed.WGAS;
     const dt    = await deadline();
     const value = ethers.parseEther("0.0005"); // tiny amount
 
@@ -196,7 +195,7 @@ async function main() {
 
   // identical address path
   try {
-    await router.getAmountsOut(ethers.parseEther("1"), [deployed.wgas, deployed.wgas]);
+    await router.getAmountsOut(ethers.parseEther("1"), [deployed.WGAS, deployed.WGAS]);
     assert.fail("expected revert");
   } catch (e: any) {
     assert.ok(

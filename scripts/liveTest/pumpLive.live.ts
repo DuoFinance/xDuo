@@ -4,6 +4,7 @@ const { ethers } = hre;
 import assert from "assert";
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const FACTORY_IFACE = "contracts/interfaces/IUniswapV2Factory.sol:IUniswapV2Factory";
 const PAIR_IFACE = "contracts/interfaces/IUniswapV2Pair.sol:IUniswapV2Pair";
@@ -36,9 +37,7 @@ const ERC20 = [
 ];
 
 async function main() {
-  const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..","..", "deployed.json"), "utf8")
-  );
+  const deployed = loadDeployed();
   const network = hre.network.name;
 
   console.log("═══════════════════════════════════════════════════");
@@ -59,22 +58,22 @@ async function main() {
 
   // 1 ── Connect to DuoLaunch
   console.log("1. Connecting to DuoLaunch...");
-  const code = await ethers.provider.getCode(deployed.pump);
-  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.pump}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
-  const pump: any = await ethers.getContractAt(PUMP_ABI, deployed.pump);
+  const code = await ethers.provider.getCode(deployed.BONDING);
+  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.BONDING}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
+  const pump: any = await ethers.getContractAt(PUMP_ABI, deployed.BONDING);
   const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   pumpIface = new ethers.Interface(pumpArtifact.abi);
   assert.strictEqual(
     (await pump.getAddress()).toLowerCase(),
-    deployed.pump.toLowerCase()
+    deployed.BONDING.toLowerCase()
   );
   const pumpFactory = await pump.uniswapFactory();
   const pumpWeth = await pump.weth();
-  console.log(`   Pump: ${deployed.pump}`);
+  console.log(`   Pump: ${deployed.BONDING}`);
   console.log(`   uniswapFactory: ${pumpFactory}`);
   console.log(`   weth          : ${pumpWeth}`);
-  assert.strictEqual(pumpFactory.toLowerCase(), deployed.factory.toLowerCase());
-  assert.strictEqual(pumpWeth.toLowerCase(), deployed.wgas.toLowerCase());
+  assert.strictEqual(pumpFactory.toLowerCase(), deployed.FACTORY.toLowerCase());
+  assert.strictEqual(pumpWeth.toLowerCase(), deployed.WGAS.toLowerCase());
   console.log("   Config ✓\n");
 
   // 2 ── Create sale (tiny targetRaise so graduation is feasible)
@@ -247,8 +246,8 @@ async function main() {
         }
 
         // pair registered in factory
-        const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);
-        const fPair = await factory.getPair(tokenAddr, deployed.wgas);
+        const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.FACTORY);
+        const fPair = await factory.getPair(tokenAddr, deployed.WGAS);
         assert.strictEqual(fPair.toLowerCase(), pairAddr.toLowerCase());
         console.log("   Factory registered ✓");
       } else {

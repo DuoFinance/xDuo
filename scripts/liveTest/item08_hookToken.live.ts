@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -23,12 +24,12 @@ const saleIface = new ethers.Interface([
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 8: Post-Transfer Hook Token (ERC777/ERC1363)");
-  console.log(`  Pump: ${d.pump}  Deployer: ${deployer.address}`);
+  console.log(`  Pump: ${d.BONDING}  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
   // ── Part 1: TokenTemplate has no post-transfer hook ──
@@ -57,7 +58,7 @@ async function main() {
 
   // Deploy a reentrant receiver that tries to re-enter pump on tokensReceived
   const RecipeFactory = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:HookReentrantReceiver");
-  const recipe = await RecipeFactory.deploy(d.pump);
+  const recipe = await RecipeFactory.deploy(d.BONDING);
   await recipe.waitForDeployment();
   const recipeAddr = await recipe.getAddress();
   console.log(`  ${_I} HookReceiver: ${recipeAddr} (tries pump.buy on tokensReceived)`);

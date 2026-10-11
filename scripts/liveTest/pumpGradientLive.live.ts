@@ -4,6 +4,7 @@ const { ethers } = hre;
 import assert from "assert";
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const FACTORY_IFACE = "contracts/interfaces/IUniswapV2Factory.sol:IUniswapV2Factory";
 const PAIR_IFACE    = "contracts/interfaces/IUniswapV2Pair.sol:IUniswapV2Pair";
@@ -278,9 +279,7 @@ async function runRound(
 }
 
 async function main() {
-  const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", '..',"deployed.json"), "utf8")
-  );
+  const deployed = loadDeployed();
   const network = hre.network.name;
 
   console.log("═════════════════════════════════════════════════════════════");
@@ -298,22 +297,22 @@ async function main() {
   console.log(`Block: ${block} ✓\n`);
 
   // Check bytecode
-  let code = await ethers.provider.getCode(deployed.pump);
-  assert.notStrictEqual(code, "0x", `No Pump bytecode at ${deployed.pump}. Use --network anvil/legacy/neoxTestnet`);
-  code = await ethers.provider.getCode(deployed.factory);
-  assert.notStrictEqual(code, "0x", `No Factory bytecode at ${deployed.factory}`);
+  let code = await ethers.provider.getCode(deployed.BONDING);
+  assert.notStrictEqual(code, "0x", `No Pump bytecode at ${deployed.BONDING}. Use --network anvil/legacy/neoxTestnet`);
+  code = await ethers.provider.getCode(deployed.FACTORY);
+  assert.notStrictEqual(code, "0x", `No Factory bytecode at ${deployed.FACTORY}`);
 
   const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   pumpIface = new ethers.Interface(pumpArtifact.abi);
-  const pump: any = await ethers.getContractAt(pumpArtifact.abi, deployed.pump);
-  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);
-  const wgas = deployed.wgas;
+  const pump: any = await ethers.getContractAt(pumpArtifact.abi, deployed.BONDING);
+  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.FACTORY);
+  const wgas = deployed.WGAS;
 
   // Verify Pump config
   const pumpFactory = await pump.uniswapFactory();
   const pumpWeth = await pump.weth();
-  assert.strictEqual(pumpFactory.toLowerCase(), deployed.factory.toLowerCase());
-  assert.strictEqual(pumpWeth.toLowerCase(), deployed.wgas.toLowerCase());
+  assert.strictEqual(pumpFactory.toLowerCase(), deployed.FACTORY.toLowerCase());
+  assert.strictEqual(pumpWeth.toLowerCase(), deployed.WGAS.toLowerCase());
   console.log("Pump config ✓\n");
 
   // Balance check

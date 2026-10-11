@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -22,12 +23,12 @@ function parseToken(rc: any): string {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 11: Gas Griefing / DoS on Refund Callback");
-  console.log(`  Pump: ${d.pump}  Deployer: ${deployer.address}`);
+  console.log(`  Pump: ${d.BONDING}  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
   // ── Step 1: Deploy GasGriefer ──
@@ -54,7 +55,7 @@ async function main() {
   await (await deployer.sendTransaction({ to: gAddr, value: ONE * 10n })).wait();
   console.log(`  ${_I} Funded griefer with 10 ETH`);
 
-  const tx1 = await griefer.buy(d.pump, token, { value: ONE * 2n, gasLimit: 500_000 });
+  const tx1 = await griefer.buy(d.BONDING, token, { value: ONE * 2n, gasLimit: 500_000 });
   await tx1.wait();
   console.log(`  ${PASS} Small buy (no refund) succeeded — griefer's receive() not triggered`);
 
@@ -79,7 +80,7 @@ async function main() {
   //   b) Succeed if the loop fits in 100k
 
   try {
-    const tx2 = await griefer.buy(d.pump, token, { value: ONE * 200n, gasLimit: 3_000_000 });
+    const tx2 = await griefer.buy(d.BONDING, token, { value: ONE * 200n, gasLimit: 3_000_000 });
     const rc2 = await tx2.wait();
     const gasUsed = rc2!.gasUsed;
     const grieferGas = await griefer.gasWasted();

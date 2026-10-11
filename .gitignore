@@ -10,3 +10,4 @@ lib/
 out/
 cache_forge/
 cache-forge/
+deployed.anvil.json

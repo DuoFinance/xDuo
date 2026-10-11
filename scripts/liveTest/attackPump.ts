@@ -3,6 +3,7 @@ import type { Interface } from "ethers";
 const { ethers } = hre;
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const PK1 = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const PK2 = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
@@ -82,13 +83,11 @@ async function main() {
   let anyGrad = false;
 
   _log(INFO, "Loading deployed contracts...");
-  const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..","..", "deployed.json"), "utf8")
-  );
-  pumpAddr = deployed.pump;
-  wgasAddr = deployed.wgas;
-  routerAddr = deployed.router;
-  factoryAddr = deployed.factory;
+  const deployed = loadDeployed();
+  pumpAddr = deployed.BONDING;
+  wgasAddr = deployed.WGAS;
+  routerAddr = deployed.ROUTER;
+  factoryAddr = deployed.FACTORY;
 
   const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   saleIface = new ethers.Interface(pumpArtifact.abi);

@@ -2,6 +2,7 @@ import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const PUMP_ABI = [
   "function buy(address,uint256) payable returns (uint256)",
@@ -15,12 +16,12 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
 const ONE = ethers.parseEther("1");
 
 async function getPump() {
-  const d = JSON.parse(fs.readFileSync(path.join(__dirname, "..","..", "deployed.json"), "utf8"));
+  const d = loadDeployed();
   return {
-    pump: await ethers.getContractAt(PUMP_ABI, d.pump),
-    pumpAddr: d.pump,
-    factoryAddr: d.factory,
-    wgasAddr: d.wgas,
+    pump: await ethers.getContractAt(PUMP_ABI, d.BONDING),
+    pumpAddr: d.BONDING,
+    factoryAddr: d.FACTORY,
+    wgasAddr: d.WGAS,
   };
 }
 

@@ -1,9 +1,32 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
-import path from "path";
+import { ANVIL_DEPLOYED_PATH, DEPLOYED_PATH } from "./addresses";
 
-const DEPLOYED_PATH = path.join(__dirname, "..", "..", "deployed.json");
+function readJson(file: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function pickAddress(...candidates: unknown[]): string | null {
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === "string" &&
+      candidate.trim() !== "" &&
+      ethers.isAddress(candidate.trim())
+    ) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -11,11 +34,32 @@ async function main() {
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Balance:", ethers.formatEther(balance), "\n");
 
-  // 1. Use fork's existing WGAS contract at the mainnet address
-  const originalDeployed = JSON.parse(fs.readFileSync(DEPLOYED_PATH, "utf8"));
-  const wgasAddr = originalDeployed.wgas;
+  // 1. Resolve WGAS: previous anvil run -> frontend deployed.json -> env.
+  //    Anvil forks NeoX mainnet, so the mainnet WGAS address is the one that
+  //    exists on-chain. deployed.json itself never carries a WGAS entry.
+  const previousAnvil = readJson(ANVIL_DEPLOYED_PATH);
+  const frontendDeployed = readJson(DEPLOYED_PATH);
+
+  const wgasAddr = pickAddress(
+    previousAnvil.WGAS,
+    frontendDeployed.WGAS,
+    frontendDeployed.WGAS_ADDRESS,
+    process.env.NEOX_MAINNET_WGAS_ADDRESS,
+    process.env.LEGACY_WGAS_ADDRESS,
+  );
+  if (!wgasAddr) {
+    throw new Error(
+      "WGAS address not found: set NEOX_MAINNET_WGAS_ADDRESS in .env",
+    );
+  }
+
   const wgasCode = await ethers.provider.getCode(wgasAddr);
-  console.log("1. Using WGAS from fork:", wgasAddr, "(code:", wgasCode !== "0x" ? "OK" : "MISSING)", ")");
+  if (wgasCode === "0x") {
+    throw new Error(
+      `No code at WGAS ${wgasAddr} on this fork — check NEOX_MAINNET_WGAS_ADDRESS in .env`,
+    );
+  }
+  console.log("1. Using WGAS from fork:", wgasAddr, "(code: OK)");
 
   // 2. Deploy Factory
   console.log("2. Deploying UniswapV2Factory...");
@@ -41,17 +85,19 @@ async function main() {
   const pumpAddr = await pump.getAddress();
   console.log("   Pump:", pumpAddr);
 
-  // 5. Save deployed.json
-  const deployed = {
-    factory: factoryAddr,
-    router: routerAddr,
-    pump: pumpAddr,
-    wgas: wgasAddr,
-    staking: "",
+  // 5. Save local-only addresses (same uppercase schema as deployed.json).
+  //    deployed.json stays untouched: it is the frontend/deploy-scripts file
+  //    and must not absorb Anvil addresses.
+  const saved = {
+    FACTORY: factoryAddr,
+    ROUTER: routerAddr,
+    BONDING: pumpAddr,
+    WGAS: wgasAddr,
+    STAKING: typeof previousAnvil.STAKING === "string" ? previousAnvil.STAKING : "",
   };
-  fs.writeFileSync(DEPLOYED_PATH, JSON.stringify(deployed, null, 2) + "\n");
-  console.log("\n5. Saved deployed.json");
-  console.log(JSON.stringify(deployed, null, 2));
+  fs.writeFileSync(ANVIL_DEPLOYED_PATH, JSON.stringify(saved, null, 2) + "\n");
+  console.log(`\n5. Saved ${ANVIL_DEPLOYED_PATH}`);
+  console.log(JSON.stringify(saved, null, 2));
   console.log("\n✅ Anvil setup complete!");
 }
 

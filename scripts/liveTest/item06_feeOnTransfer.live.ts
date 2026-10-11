@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -37,12 +38,12 @@ function parseToken(rc: any): string {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 6: Token with Fee-on-Transfer (Reflection)");
-  console.log(`  Pump: ${d.pump}  Deployer: ${deployer.address}`);
+  console.log(`  Pump: ${d.BONDING}  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
   // ── Part 1: Verify TokenTemplate has NO fee ──
@@ -72,8 +73,8 @@ async function main() {
   const graduated = sale[7];
 
   if (graduated) {
-    const factory = await ethers.getContractAt(["function getPair(address,address) view returns (address)"], d.factory);
-    const pairAddr = await factory.getPair(token, d.wgas);
+    const factory = await ethers.getContractAt(["function getPair(address,address) view returns (address)"], d.FACTORY);
+    const pairAddr = await factory.getPair(token, d.WGAS);
     const pair = await ethers.getContractAt(
       ["function getReserves() view returns (uint112,uint112,uint32)", "function balanceOf(address) view returns (uint256)"],
       pairAddr

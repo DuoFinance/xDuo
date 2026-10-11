@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -22,12 +23,12 @@ const saleIface = new ethers.Interface([
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 7: Token with Blacklist (USDT-style)");
-  console.log(`  Pump: ${d.pump}  Deployer: ${deployer.address}`);
+  console.log(`  Pump: ${d.BONDING}  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
   // ── Part 1: Verify TokenTemplate works normally (no blacklist) ──
@@ -101,8 +102,8 @@ async function main() {
   console.log(`  ${sale3[7] ? PASS : FAIL} Sale graduated: ${sale3[7]}`);
 
   // Get pair and show it's a normal Uniswap V2 pair
-  const factory = await ethers.getContractAt(["function getPair(address,address) view returns (address)"], d.factory);
-  const pairAddr = await factory.getPair(token3, d.wgas);
+  const factory = await ethers.getContractAt(["function getPair(address,address) view returns (address)"], d.FACTORY);
+  const pairAddr = await factory.getPair(token3, d.WGAS);
   console.log(`  ${_I} Uniswap pair: ${pairAddr}`);
 
   // Transfer tokens between addresses on the graduated pair (normal AMM behavior)
@@ -115,7 +116,7 @@ async function main() {
 
   // Verify that the TokenTemplate used by pump has no blacklist by checking token code
   const ttContract = new ethers.Contract(token3, ["function balanceOf(address) view returns (uint256)"], deployer);
-  const pumpBal = await ttContract.balanceOf(d.pump);
+  const pumpBal = await ttContract.balanceOf(d.BONDING);
   console.log(`  ${_I} Pump balance of token: ${ethers.formatEther(pumpBal)} (0 after graduation)`);
   console.log(`  ${PASS} TokenTemplate has no blacklist — transfers always succeed`);
 

@@ -12,7 +12,7 @@
     "test:all": "npm run test && npm run test:live",
     "anvil": "bash scripts/liveTest/anvil.sh",
     "anvil:setup": "npx hardhat run scripts/liveTest/setupAnvil.ts --network anvil",
-    "deploy:bonding:legacy": "hardhat run scripts/deploy.ts --network legacy",
+    "deploy:legacy": "hardhat run scripts/deploy.ts --network legacy",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network neoxTestnet",
     "deploy:mainnet": "hardhat run scripts/deploy.ts --network neoxMainnet",
     "deploy:Duo+Staking:legacy": "hardhat run scripts/deployDuoStaking.ts --network legacy",

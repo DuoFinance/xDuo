@@ -5,7 +5,7 @@ bonding-curve contract (`x*y=k` virtual pool) that auto-creates a Uniswap V2 poo
 
 ## Repo layout
 
-- `contracts/UniswapV2*.sol`, `contracts/Weth9.sol` — frozen Uniswap V2 core/periphery (vendor code, do not modify)
+- `contracts/UniswapV2*.sol` — frozen Uniswap V2 core/periphery (vendor code, do not modify)
 - `contracts/duoLaunch/` — DuoLaunch fair-launch (`DuoLaunch.sol`, `CurveMath.sol`, `Constants.sol`, `IDuo.sol`, `TokenTemplate.sol`, `IUniswapV2.sol`)
 - `contracts/duo/` — `DuoToken`, `MockUSDT` (test token: 1M supply, 4 decimals)
 - `contracts/interfaces/`, `contracts/libraries/` — shared Uniswap V2 interfaces/math
@@ -127,6 +127,10 @@ npm run deploy:usdt:mainnet  # MockUSDT (test token) → neoxMainnet
 ```
 
 `scripts/deploy.ts` writes deployed addresses to `deployed.json` (and the UI config path).
+
+Anvil live tests never touch `deployed.json`: `npm run anvil:setup` writes the local
+Factory/Router/BONDING addresses to `deployed.anvil.json` (same uppercase key schema,
+git-ignored), and `scripts/liveTest/*.ts` read it through `loadDeployed()`.
 
 ## Notes
 

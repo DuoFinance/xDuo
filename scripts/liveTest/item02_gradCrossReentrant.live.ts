@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP_ABI = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -16,14 +17,14 @@ const PASS = "\u2713", FAIL = "\u2717", _I = "\u2192";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP_ABI, d.pump);
-  const factoryAddr = d.factory;
-  const wgasAddr = d.wgas;
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP_ABI, d.BONDING);
+  const factoryAddr = d.FACTORY;
+  const wgasAddr = d.WGAS;
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 2: Graduation Cross-Contract Reentrancy");
-  console.log(`  Pump: ${d.pump}  Factory: ${factoryAddr}  WGAS: ${wgasAddr}`);
+  console.log(`  Pump: ${d.BONDING}  Factory: ${factoryAddr}  WGAS: ${wgasAddr}`);
   console.log(`  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
@@ -37,7 +38,7 @@ async function main() {
 
   // Deploy GraduationCrossReentrant helper
   const HF = await ethers.getContractFactory("contracts/test/CallbackTestHelper.sol:GraduationCrossReentrant");
-  const hlpr = await HF.connect(deployer).deploy(d.pump, factoryAddr, wgasAddr, token);
+  const hlpr = await HF.connect(deployer).deploy(d.BONDING, factoryAddr, wgasAddr, token);
   await hlpr.waitForDeployment();
   const hAddr = await hlpr.getAddress();
   console.log(`  ${_I} Helper: ${hAddr}`);

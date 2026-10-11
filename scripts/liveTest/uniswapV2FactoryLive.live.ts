@@ -3,14 +3,13 @@ const { ethers } = hre;
 import assert from "assert";
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const FACTORY_IFACE = "contracts/interfaces/IUniswapV2Factory.sol:IUniswapV2Factory";
 const PAIR_IFACE    = "contracts/interfaces/IUniswapV2Pair.sol:IUniswapV2Pair";
 
 async function main() {
-  const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "..","deployed.json"), "utf8")
-  );
+  const deployed = loadDeployed();
   const network = hre.network.name;
 
   console.log("═══════════════════════════════════════════════════");
@@ -32,11 +31,11 @@ async function main() {
 
   // 1 ── Connect to Factory
   console.log("1. Connecting to Factory...");
-  const code = await ethers.provider.getCode(deployed.factory);
-  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.factory}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
-  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);
+  const code = await ethers.provider.getCode(deployed.FACTORY);
+  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.FACTORY}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
+  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.FACTORY);
   const fAddr = await factory.getAddress();
-  assert.strictEqual(fAddr.toLowerCase(), deployed.factory.toLowerCase());
+  assert.strictEqual(fAddr.toLowerCase(), deployed.FACTORY.toLowerCase());
   console.log(`   Factory: ${fAddr} ✓\n`);
 
   // 2 ── Configuration
@@ -85,7 +84,7 @@ async function main() {
   // 4 ── Non-existent pair → zero address
   console.log("4. getPair(non-existent) → 0x0...");
   const zero = await factory.getPair(
-    deployed.wgas,
+    deployed.WGAS,
     "0x0000000000000000000000000000000000000001"
   );
   assert.strictEqual(zero, ethers.ZeroAddress);

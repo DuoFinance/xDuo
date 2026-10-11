@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -40,12 +41,12 @@ const GAS_IN = ethers.parseEther("1");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 10: Extreme Reserve Manipulation");
-  console.log(`  Pump: ${d.pump}  Deployer: ${deployer.address}`);
+  console.log(`  Pump: ${d.BONDING}  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
   // Create a fresh sale
@@ -73,7 +74,7 @@ async function main() {
 
   // Sell a portion
   const sellAmount = tBal / 10n;
-  await (await tc.approve(d.pump, sellAmount)).wait();
+  await (await tc.approve(d.BONDING, sellAmount)).wait();
   const tSell = await pump.sell(token, sellAmount, 0);
   await tSell.wait();
   tBal = await tc.balanceOf(deployer.address);
@@ -113,7 +114,7 @@ async function main() {
   console.log(`  ${bal2 > 0n ? PASS : FAIL} Bought ${ethers.formatEther(bal2)} for 1 ETH`);
 
   // Sell everything back
-  await (await tc2.approve(d.pump, bal2)).wait();
+  await (await tc2.approve(d.BONDING, bal2)).wait();
   const t4 = await pump.sell(token2, bal2, 0);
   await t4.wait();
   const finalBal = await tc2.balanceOf(deployer.address);

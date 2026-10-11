@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createAndBuy(string,string,uint256,uint256,uint256,string,string,string,string) payable",
@@ -42,8 +43,8 @@ function parseGASInFromReceipt(rc: any): bigint {
 }
 
 async function getPump() {
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
   return pump;
 }
 

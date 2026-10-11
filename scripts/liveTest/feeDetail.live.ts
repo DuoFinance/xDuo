@@ -3,6 +3,7 @@ const { ethers } = hre;
 import assert from "assert";
 import * as fs from "fs";
 import path from "path";
+import { loadDeployed } from "./addresses";
 
 const ROUTER_IFACE = "contracts/interfaces/IUniswapV2Router02.sol:IUniswapV2Router02";
 const FACTORY_IFACE = "contracts/interfaces/IUniswapV2Factory.sol:IUniswapV2Factory";
@@ -56,9 +57,7 @@ async function printFee(label: string, txResponse: any) {
 }
 
 async function main() {
-  const deployed = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "..", "deployed.json"), "utf8")
-  );
+  const deployed = loadDeployed();
   const network = hre.network.name;
 
   console.log("=".repeat(60));
@@ -78,10 +77,10 @@ async function main() {
   console.log();
 
   // ── Connect contracts ──
-  const router = await ethers.getContractAt(ROUTER_IFACE, deployed.router);
-  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.factory);
-  const wgas = deployed.wgas;
-  const pump = await ethers.getContractAt(PUMP_ABI, deployed.pump);
+  const router = await ethers.getContractAt(ROUTER_IFACE, deployed.ROUTER);
+  const factory = await ethers.getContractAt(FACTORY_IFACE, deployed.FACTORY);
+  const wgas = deployed.WGAS;
+  const pump = await ethers.getContractAt(PUMP_ABI, deployed.BONDING);
 
   // ──────────────────────────────────────────
   // Setup: deploy test ERC20 & create WETH pair
@@ -109,7 +108,7 @@ async function main() {
 
   // Approve router for token spending
   const approveAmt = ethers.parseEther("1000");
-  await (await testToken.approve(deployed.router, approveAmt)).wait();
+  await (await testToken.approve(deployed.ROUTER, approveAmt)).wait();
   console.log(`  Approved router for ${ethers.formatEther(approveAmt)} tokens`);
   console.log();
 
@@ -208,8 +207,8 @@ async function main() {
       console.log(`  Wrapped ${ethers.formatEther(wrapAmt)} ETH → WETH`);
     }
     curWethBal = await wethContract.balanceOf(deployer.address);
-    await (await wethContract.approve(deployed.router, curWethBal)).wait();
-    await (await testToken.approve(deployed.router, liqTokenAmt2)).wait();
+    await (await wethContract.approve(deployed.ROUTER, curWethBal)).wait();
+    await (await testToken.approve(deployed.ROUTER, liqTokenAmt2)).wait();
     const tx4 = await router.addLiquidity(
       tokenAddr, wgas,
       liqTokenAmt2, curWethBal, 0n, 0n,
@@ -251,7 +250,7 @@ async function main() {
 
   // Extract token address from SaleCreated event
   const saleCreatedTopic = ethers.id("SaleCreated(address,address,string,string,string,string,string,string)");
-  const pumpAddr = deployed.pump;
+  const pumpAddr = deployed.BONDING;
   const rc5 = await tx5.wait();
   const cbLog = rc5!.logs.find((l: any) =>
     l.topics[0] === saleCreatedTopic && l.address.toLowerCase() === pumpAddr.toLowerCase()

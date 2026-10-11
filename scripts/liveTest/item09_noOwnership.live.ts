@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -19,17 +20,17 @@ const saleIface = new ethers.Interface([
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 9: No Ownership — Permissionless Operation");
-  console.log(`  Pump: ${d.pump}  Deployer: ${deployer.address}`);
+  console.log(`  Pump: ${d.BONDING}  Deployer: ${deployer.address}`);
   console.log(`${"=".repeat(60)}\n`);
 
   // ── Part 1: Verify no owner in pump or token ──
   console.log("  ── Part 1: No owner functions ──");
-  const pumpCode = await ethers.provider.getCode(d.pump);
+  const pumpCode = await ethers.provider.getCode(d.BONDING);
   const noOwnable = !pumpCode.includes("2f4f4e"); // bytes4 of ownable functions
   console.log(`  ${PASS} Pump has no Ownable functions`);
 
@@ -49,7 +50,7 @@ async function main() {
   console.log(`  ${bal > 0n ? PASS : FAIL} Buy works: ${ethers.formatEther(bal)} tokens`);
 
   const tc = new ethers.Contract(token, ["function approve(address,uint256) returns (bool)"], deployer);
-  await (await tc.approve(d.pump, bal)).wait();
+  await (await tc.approve(d.BONDING, bal)).wait();
   const txSell = await (pump as any).connect(deployer).sell(token, bal, 0);
   await txSell.wait();
   const balAfter = await new ethers.Contract(token, ERC20, deployer).balanceOf(deployer.address);
@@ -81,7 +82,7 @@ async function main() {
   let noAdminFunctions = true;
   for (const sel of adminSelectors) {
     try {
-      await ethers.provider.call({ to: d.pump, data: sel });
+      await ethers.provider.call({ to: d.BONDING, data: sel });
       // If call succeeds (returns 0x or any data), the function exists
       noAdminFunctions = false;
       console.log(`  ${FAIL} Unexpected admin function: ${sel}`);

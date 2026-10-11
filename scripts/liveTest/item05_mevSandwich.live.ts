@@ -1,6 +1,7 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
+import { loadDeployed } from "./addresses";
 
 const PUMP = [
   "function createSale(string,string,uint256,uint256,string,string,string,string) returns (address)",
@@ -49,11 +50,11 @@ async function deadline(minutes = 30): Promise<number> {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const d = JSON.parse(fs.readFileSync("deployed.json", "utf8"));
-  const pump = await ethers.getContractAt(PUMP, d.pump);
-  const router = await ethers.getContractAt(ROUTER, d.router);
-  const pumpAddr = d.pump;
-  const routerAddr = d.router;
+  const d = loadDeployed();
+  const pump = await ethers.getContractAt(PUMP, d.BONDING);
+  const router = await ethers.getContractAt(ROUTER, d.ROUTER);
+  const pumpAddr = d.BONDING;
+  const routerAddr = d.ROUTER;
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  Item 5: Multi-block MEV Sandwich After Graduation");
@@ -91,10 +92,10 @@ async function main() {
 
   // ── Step 3: Get the Uniswap pair ──
   console.log("  ── Step 3: Get the graduated Uniswap pair ──");
-  const wgas = d.wgas;
+  const wgas = d.WGAS;
   const factory = await ethers.getContractAt(
     ["function getPair(address,address) view returns (address)"],
-    d.factory
+    d.FACTORY
   );
   const pairAddr = await factory.getPair(token, wgas);
   console.log(`  ${_I} Pair: ${pairAddr}`);
