@@ -1,6 +1,7 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
+import { saveDeployedAddresses } from "./xContracts";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -27,6 +28,7 @@ async function main() {
   console.log("MockUSDT:", usdtAddress);
   console.log("Deploy tx:", usdt.deploymentTransaction()?.hash ?? "unknown");
   console.log("Decimals: 4, Total supply: 1000000 USDT (10000000000 base units)");
+  saveDeployedAddresses({ USDT: usdtAddress }, hre.network.name);
 }
 
 main().catch((error) => {

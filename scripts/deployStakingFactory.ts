@@ -2,6 +2,7 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { getEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
+import { saveDeployedAddresses } from "./xContracts";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -27,8 +28,13 @@ async function main() {
   const factory = await Factory.deploy(factoryOwner, overrides);
   await factory.waitForDeployment();
 
-  console.log("DuoSwapStakingFactory:", await factory.getAddress());
+  const factoryAddress = await factory.getAddress();
+  console.log("DuoSwapStakingFactory:", factoryAddress);
   console.log("Deploy tx:", factory.deploymentTransaction()?.hash ?? "unknown");
+  saveDeployedAddresses(
+    { STAKING_FACTORY: factoryAddress },
+    hre.network.name,
+  );
 }
 
 main().catch((error) => {

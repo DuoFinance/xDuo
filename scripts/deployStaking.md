@@ -1,18 +1,11 @@
 # Staking Deployment Guide
 
-`npm run deploy:staking:legacy`
+`npx hardhat run scripts/deployStaking.ts --network legacy`
 
+Set `STAKING_POOLS` to exactly one LP token address and `TOKEN_ADDRESS` to the
+reward token address before deploying. The script saves the staking contract
+address as `STAKING` and the LP token as `DUOGAS` in `deployed.json`.
 
-Parameters:
-    duo reward token address, 
-    lpToken addess, 
-    Owner address.
-
-    INIT_ALLOCATION: boolean,
-    INIT_REWARDS: boolean,
-    REWARD_AMOUNT: integer,
-    REWARD_BLOCKS: integer,
-    STAKING_ACTIONS: boolean,
-
-return STAKING_ADDRESS
-
+`scripts/manageStaking.ts` reads both addresses from `deployed.json` and checks
+that the connected wallet owns the staking contract before sending management
+transactions.

@@ -25,7 +25,7 @@ export type DeployedAddresses = {
   STAKING: string;
   USDT?: string;
   DUO?: string;
-  PAIR?: string;
+  DUOGAS?: string;
   raw: Record<string, unknown>;
 };
 
@@ -113,7 +113,7 @@ export function loadDeployed(network: string = hre.network.name): DeployedAddres
     STAKING: pick("STAKING") ?? "",
     USDT: pick("USDT"),
     DUO: pick("DUO"),
-    PAIR: pick("PAIR"),
+    DUOGAS: pick("DUOGAS"),
     raw,
   };
 }

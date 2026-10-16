@@ -2,27 +2,18 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
-import { saveXContracts } from "./xContracts";
-import {
-  copyFileSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "fs";
+import { saveDeployedAddresses } from "./xContracts";
 import path from "path";
 import fs from "fs";
 
 const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
-const DEPLOYED_JSON_TMP = `${DEPLOYED_JSON}.tmp`;
-const DEPLOYED_JSON_BAK = `${DEPLOYED_JSON}.bak`;
 
 type DeployedData = {
   FACTORY?: unknown;
   ROUTER?: unknown;
   BONDING?: unknown;
   DUO?: unknown;
-  PAIR?: unknown;
+  DUOGAS?: unknown;
   STAKING?: unknown;
   [key: string]: unknown;
 };
@@ -57,14 +48,14 @@ function requireAddress(label: string, value: unknown): string {
 }
 
 function readDeployed(): DeployedData {
-  if (!existsSync(DEPLOYED_JSON)) {
+  if (!fs.existsSync(DEPLOYED_JSON)) {
     throw new Error(
       `deployed.json not found at ${DEPLOYED_JSON}. Run the base deployment script first.`,
     );
   }
   let raw: string;
   try {
-    raw = readFileSync(DEPLOYED_JSON, "utf-8");
+    raw = fs.readFileSync(DEPLOYED_JSON, "utf-8");
   } catch (err) {
     throw new Error(`Failed to read deployed.json: ${(err as Error).message}`);
   }
@@ -73,32 +64,6 @@ function readDeployed(): DeployedData {
   } catch (err) {
     throw new Error(
       `deployed.json is not valid JSON: ${(err as Error).message}`,
-    );
-  }
-}
-
-function atomicWriteDeployed(data: DeployedData): void {
-  const payload = JSON.stringify(data, null, 2) + "\n";
-  writeFileSync(DEPLOYED_JSON_TMP, payload, "utf-8");
-  if (existsSync(DEPLOYED_JSON)) {
-    copyFileSync(DEPLOYED_JSON, DEPLOYED_JSON_BAK);
-  }
-  renameSync(DEPLOYED_JSON_TMP, DEPLOYED_JSON);
-}
-
-function warnIfOverwrite(
-  label: string,
-  existing: unknown,
-  next: unknown,
-): void {
-  if (
-    existing !== undefined &&
-    existing !== null &&
-    existing !== "" &&
-    existing !== next
-  ) {
-    console.warn(
-      `[WARN] Overwriting deployed.json["${label}"]: ${JSON.stringify(existing)} → ${JSON.stringify(next)}`,
     );
   }
 }
@@ -202,8 +167,10 @@ async function main() {
   console.log("CreatePair tx:", createPairTx.hash);
 
   // 3. Deploy DuoSwapStaking for each LP token
-  if (lpTokens.length === 0) {
-    throw new Error("No LP tokens provided in STAKING_POOLS.");
+  if (lpTokens.length !== 1) {
+    throw new Error(
+      `Expected exactly one LP token in STAKING_POOLS for single-pool deployment; got ${lpTokens.length}.`,
+    );
   }
   if (shouldStartRewards && rewardBlocks <= 0n) {
     throw new Error(
@@ -212,41 +179,36 @@ async function main() {
   }
 
   const Staking = await ethers.getContractFactory("DuoSwapStaking");
-  const stakingAddresses: string[] = [];
+  const lpToken = lpTokens[0];
+  const staking = await Staking.deploy(
+    lpToken,
+    duoAddress,
+    stakingOwner,
+    overrides,
+  );
+  await staking.waitForDeployment();
+  const stakingAddress = await staking.getAddress();
 
-  for (let i = 0; i < lpTokens.length; i += 1) {
-    const lpToken = lpTokens[i];
-    const staking = await Staking.deploy(
-      lpToken,
-      duoAddress,
-      stakingOwner,
+  console.log("DuoSwapStaking for %s:", lpToken, stakingAddress);
+  console.log(
+    "Deploy tx:",
+    staking.deploymentTransaction()?.hash ?? "unknown",
+  );
+
+  if (shouldInitAllocation) {
+    const duoToken = await ethers.getContractAt("DuoToken", duoAddress);
+    const allocationTx = await duoToken.initializeAllocation(
+      stakingAddress,
       overrides,
     );
-    await staking.waitForDeployment();
-    const stakingAddress = await staking.getAddress();
-    stakingAddresses.push(stakingAddress);
+    await allocationTx.wait();
+    console.log("initializeAllocation tx:", allocationTx.hash);
+  }
 
-    console.log("DuoSwapStaking for %s:", lpToken, stakingAddress);
-    console.log(
-      "Deploy tx:",
-      staking.deploymentTransaction()?.hash ?? "unknown",
-    );
-
-    if (i === 0 && shouldInitAllocation) {
-      const duoToken = await ethers.getContractAt("DuoToken", duoAddress);
-      const allocationTx = await duoToken.initializeAllocation(
-        stakingAddress,
-        overrides,
-      );
-      await allocationTx.wait();
-      console.log("initializeAllocation tx:", allocationTx.hash);
-    }
-
-    if (shouldStartRewards) {
-      const rewardTx = await staking.startRewards(rewardBlocks, overrides);
-      await rewardTx.wait();
-      console.log("startRewards tx:", rewardTx.hash);
-    }
+  if (shouldStartRewards) {
+    const rewardTx = await staking.startRewards(rewardBlocks, overrides);
+    await rewardTx.wait();
+    console.log("startRewards tx:", rewardTx.hash);
   }
 
   if (hre.network.name !== "hardhat") {
@@ -279,30 +241,16 @@ async function main() {
   );
 
   // 4. Update deployed.json with new addresses (uppercase keys match existing schema)
-  const stakingValue = stakingAddresses.join(",");
-  warnIfOverwrite("USDT", deployed.USDT, usdtAddress);
-  warnIfOverwrite("DUO", deployed.DUO, duoAddress);
-  warnIfOverwrite("PAIR", deployed.PAIR, DUOGAS);
-  warnIfOverwrite("STAKING", deployed.STAKING, stakingValue);
-
-  deployed.USDT = usdtAddress;
-  deployed.DUO = duoAddress;
-  deployed.PAIR = DUOGAS;
-  deployed.STAKING = stakingValue;
-  atomicWriteDeployed(deployed);
-  console.log("Saved (atomically) to deployed.json");
-
-  // Sync to ui-v2/packages/config/src/deployedContracts/ (per-mode + legacy).
-  // Merge-only: FACTORY/ROUTER/BONDING from the base deploy are preserved.
-  saveXContracts(
+  saveDeployedAddresses(
     {
       USDT: usdtAddress,
       DUO: duoAddress,
-      DUOGAS: DUOGAS,
-      STAKING: stakingValue,
+      DUOGAS,
+      STAKING: stakingAddress,
     },
     hre.network.name,
   );
+  console.log("Saved Duo, USDT, pair, and staking addresses.");
 }
 
 main().catch((error) => {

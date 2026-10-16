@@ -1,20 +1,20 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
-import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
+import { requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
+import fs from "fs";
+import path from "path";
 
 type StakingAction =
-  | "createPool"
-  | "createPoolWithRewards"
   | "startRewards"
   | "fundAndStartRewards"
   | "addRewards"
   | "recoverEndedRewards";
 
+const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
+
 function parseAction(value: string): StakingAction {
   switch (value.trim()) {
-    case "createPool":
-    case "createPoolWithRewards":
     case "startRewards":
     case "fundAndStartRewards":
     case "addRewards":
@@ -22,17 +22,43 @@ function parseAction(value: string): StakingAction {
       return value.trim() as StakingAction;
     default:
       throw new Error(
-        `Unsupported staking action "${value}". Expected one of createPool, createPoolWithRewards, startRewards, fundAndStartRewards, addRewards, recoverEndedRewards.`
+        `Unsupported staking action "${value}". Expected one of startRewards, fundAndStartRewards, addRewards, recoverEndedRewards.`
       );
   }
 }
 
-function requireBigInt(networkName: string, key: string): bigint {
-  return BigInt(requireEnvByNetwork(networkName, key));
+function readDeployedAddresses(): { staking: string; duoGas: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(DEPLOYED_JSON, "utf-8"));
+  } catch (err) {
+    throw new Error(
+      `Failed to read deployed.json at ${DEPLOYED_JSON}: ${(err as Error).message}`,
+    );
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`Invalid deployed.json at ${DEPLOYED_JSON}: expected an object.`);
+  }
+
+  const data = parsed as Record<string, unknown>;
+  const staking = data.STAKING;
+  const duoGas = data.DUOGAS;
+  if (typeof staking !== "string" || !ethers.isAddress(staking.trim())) {
+    throw new Error(
+      `deployed.json must contain one valid STAKING address; got ${JSON.stringify(staking)}.`,
+    );
+  }
+  if (typeof duoGas !== "string" || !ethers.isAddress(duoGas.trim())) {
+    throw new Error(
+      `deployed.json must contain one valid DUOGAS address; got ${JSON.stringify(duoGas)}.`,
+    );
+  }
+
+  return { staking: staking.trim(), duoGas: duoGas.trim() };
 }
 
-function optionalAddress(networkName: string, key: string): string | undefined {
-  return getEnvByNetwork(networkName, key);
+function requireBigInt(networkName: string, key: string): bigint {
+  return BigInt(requireEnvByNetwork(networkName, key));
 }
 
 async function approveIfNeeded(
@@ -80,84 +106,27 @@ async function main() {
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
   console.log("Action:", action);
 
-  if (action === "createPool" || action === "createPoolWithRewards") {
-    const factoryAddress = requireEnvByNetwork(hre.network.name, "STAKING_FACTORY_ADDRESS");
-    const lpToken = requireEnvByNetwork(hre.network.name, "STAKING_LP_TOKEN");
-    const rewardToken = requireEnvByNetwork(hre.network.name, "STAKING_REWARD_TOKEN");
-    const stakingOwner = optionalAddress(hre.network.name, "STAKING_OWNER") ?? deployer.address;
-    const factory = await ethers.getContractAt("DuoSwapStakingFactory", factoryAddress);
-
-    console.log("Factory:", factoryAddress);
-    console.log("LP token:", lpToken);
-    console.log("Reward token:", rewardToken);
-    console.log("Staking owner:", stakingOwner);
-
-    if (action === "createPool") {
-      const tx = await factory.createPool(lpToken, rewardToken, stakingOwner, overrides);
-      const receipt = await tx.wait();
-      let stakingAddress: string | undefined;
-
-      for (const log of receipt?.logs ?? []) {
-        try {
-          const parsed = factory.interface.parseLog(log);
-          if (parsed?.name === "PoolCreated") {
-            stakingAddress = parsed.args.staking as string;
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
-
-      console.log("createPool tx:", tx.hash);
-      if (stakingAddress) {
-        console.log("Staking:", stakingAddress);
-      }
-      return;
-    }
-
-    const rewardAmount = requireBigInt(hre.network.name, "STAKING_REWARD_AMOUNT");
-    const rewardBlocks = requireBigInt(hre.network.name, "STAKING_REWARD_BLOCKS");
-
-    console.log("Reward amount:", rewardAmount.toString());
-    console.log("Reward blocks:", rewardBlocks.toString());
-
-    await approveIfNeeded(rewardToken, deployer.address, factoryAddress, rewardAmount, overrides);
-
-    const tx = await factory.createPoolWithRewards(
-      lpToken,
-      rewardToken,
-      stakingOwner,
-      rewardAmount,
-      rewardBlocks,
-      overrides
+  const { staking: stakingAddress, duoGas: configuredDuoGas } =
+    readDeployedAddresses();
+  const staking = await ethers.getContractAt("DuoSwapStaking", stakingAddress);
+  const [stakingOwner, stakingLpToken] = await Promise.all([
+    staking.owner(),
+    staking.lpToken(),
+  ]);
+  if (stakingOwner.toLowerCase() !== deployer.address.toLowerCase()) {
+    throw new Error(
+      `Wallet ${deployer.address} is not the owner of staking contract ${stakingAddress} (owner: ${stakingOwner}).`,
     );
-    const receipt = await tx.wait();
-    let stakingAddress: string | undefined;
-
-    for (const log of receipt?.logs ?? []) {
-      try {
-        const parsed = factory.interface.parseLog(log);
-        if (parsed?.name === "PoolCreated") {
-          stakingAddress = parsed.args.staking as string;
-          break;
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    console.log("createPoolWithRewards tx:", tx.hash);
-    if (stakingAddress) {
-      console.log("Staking:", stakingAddress);
-    }
-    return;
+  }
+  if (stakingLpToken.toLowerCase() !== configuredDuoGas.toLowerCase()) {
+    throw new Error(
+      `DUOGAS in deployed.json (${configuredDuoGas}) does not match staking contract LP token (${stakingLpToken}).`,
+    );
   }
 
-  const stakingAddress = requireEnvByNetwork(hre.network.name, "STAKING_ADDRESS");
-  const staking = await ethers.getContractAt("DuoSwapStaking", stakingAddress);
-
   console.log("Staking:", stakingAddress);
+  console.log("DUOGAS:", configuredDuoGas);
+  console.log("Staking owner:", stakingOwner);
 
   if (action === "startRewards") {
     const rewardBlocks = requireBigInt(hre.network.name, "STAKING_REWARD_BLOCKS");

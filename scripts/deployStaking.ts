@@ -2,6 +2,7 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
+import { saveDeployedAddresses } from "./xContracts";
 
 function parseBool(value: string | undefined, defaultValue = false): boolean {
   if (value === undefined) return defaultValue;
@@ -37,8 +38,10 @@ async function main() {
   const shouldStartRewards = parseBool(getEnvByNetwork(hre.network.name, "INIT_REWARDS"));
   const lpTokens = parsePoolConfigs(getEnvByNetwork(hre.network.name, "STAKING_POOLS"));
 
-  if (lpTokens.length === 0) {
-    throw new Error("No LP tokens provided in STAKING_POOLS.");
+  if (lpTokens.length !== 1) {
+    throw new Error(
+      `Expected exactly one LP token in STAKING_POOLS for single-pool deployment; got ${lpTokens.length}.`,
+    );
   }
   if (shouldStartRewards && rewardBlocks <= 0n) {
     throw new Error("STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.");
@@ -52,29 +55,35 @@ async function main() {
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 5_000_000n);
   const Staking = await ethers.getContractFactory("DuoSwapStaking");
+  const lpToken = lpTokens[0];
+  const staking = await Staking.deploy(
+    lpToken,
+    duoTokenAddress,
+    stakingOwner,
+    overrides,
+  );
+  await staking.waitForDeployment();
+  const stakingAddress = await staking.getAddress();
 
-  for (let i = 0; i < lpTokens.length; i += 1) {
-    const lpToken = lpTokens[i];
-    const staking = await Staking.deploy(lpToken, duoTokenAddress, stakingOwner, overrides);
-    await staking.waitForDeployment();
-    const stakingAddress = await staking.getAddress();
+  console.log("DuoSwapStaking for %s:", lpToken, stakingAddress);
+  console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
 
-    console.log('DuoSwapStaking for %s:', lpToken, stakingAddress);
-    console.log("Deploy tx:", staking.deploymentTransaction()?.hash ?? "unknown");
-
-    if (i === 0 && shouldInitAllocation) {
-      const duoToken = await ethers.getContractAt("DuoToken", duoTokenAddress);
-      const allocationTx = await duoToken.initializeAllocation(stakingAddress, overrides);
-      await allocationTx.wait();
-      console.log("initializeAllocation tx:", allocationTx.hash);
-    }
-
-    if (shouldStartRewards) {
-      const rewardTx = await staking.startRewards(rewardBlocks, overrides);
-      await rewardTx.wait();
-      console.log("startRewards tx:", rewardTx.hash);
-    }
+  if (shouldInitAllocation) {
+    const duoToken = await ethers.getContractAt("DuoToken", duoTokenAddress);
+    const allocationTx = await duoToken.initializeAllocation(
+      stakingAddress,
+      overrides,
+    );
+    await allocationTx.wait();
+    console.log("initializeAllocation tx:", allocationTx.hash);
   }
+
+  if (shouldStartRewards) {
+    const rewardTx = await staking.startRewards(rewardBlocks, overrides);
+    await rewardTx.wait();
+    console.log("startRewards tx:", rewardTx.hash);
+  }
+  saveDeployedAddresses({ STAKING: stakingAddress }, hre.network.name);
 }
 
 main().catch((error) => {

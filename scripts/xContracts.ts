@@ -9,6 +9,8 @@ import path from "path";
 
 export type XDeployMode = "selfnet" | "testnet" | "mainnet";
 
+const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
+
 const MODE_FILES: Record<XDeployMode, string> = {
   selfnet: "x_contracts.selfnet.json",
   testnet: "x_contracts.testnet.json",
@@ -20,6 +22,29 @@ const LEGACY_FILE = "x_contracts.json";
 
 const isEvmAddress = (value: unknown): value is string =>
   typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
+
+function validateAddresses(
+  partial: Record<string, string | undefined>,
+): Record<string, string> {
+  const clean: Record<string, string> = {};
+  for (const [key, value] of Object.entries(partial)) {
+    if (value === undefined) continue;
+    const segments = value
+      .split(",")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    if (segments.length === 0 || !segments.every(isEvmAddress)) {
+      throw new Error(
+        `[xContracts] refusing to write invalid address for "${key}": ${JSON.stringify(value)}`,
+      );
+    }
+    clean[key] = segments.join(",");
+  }
+  if (Object.keys(clean).length === 0) {
+    throw new Error("[xContracts] no deployment addresses were provided");
+  }
+  return clean;
+}
 
 /**
  * Hardhat network name -> ui-v2 deploy mode.
@@ -97,6 +122,51 @@ function atomicWriteJson(file: string, data: Record<string, unknown>): void {
 }
 
 /**
+ * Persist deployed addresses locally before syncing them to the frontend
+ * config for the selected network.
+ */
+export function saveDeployedAddresses(
+  partial: Record<string, string | undefined>,
+  hreNetworkName: string,
+): Record<string, string> {
+  const clean = validateAddresses(partial);
+  let existing: Record<string, unknown> = {};
+  if (existsSync(DEPLOYED_JSON)) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(DEPLOYED_JSON, "utf-8"));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("expected a JSON object");
+      }
+      existing = parsed as Record<string, unknown>;
+    } catch (err) {
+      throw new Error(
+        `[xContracts] failed to read ${DEPLOYED_JSON}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  const deployed = { ...existing, ...clean };
+  if (clean.DUOGAS === undefined) {
+    const legacyDuoGas = existing.DUOGAS ?? existing.PAIR ?? existing.LP_TOKEN;
+    if (typeof legacyDuoGas === "string") deployed.DUOGAS = legacyDuoGas;
+  }
+  delete deployed.PAIR;
+  delete deployed.LP_TOKEN;
+  for (const [key, value] of Object.entries(clean)) {
+    const previous = existing[key];
+    if (previous !== undefined && previous !== value) {
+      console.warn(
+        `[xContracts] overwriting deployed.json["${key}"]: ${JSON.stringify(previous)} -> ${JSON.stringify(value)}`,
+      );
+    }
+  }
+  atomicWriteJson(DEPLOYED_JSON, deployed);
+  console.log(`[xContracts] saved deployed addresses -> ${DEPLOYED_JSON}`);
+  saveXContracts(clean, hreNetworkName);
+  return clean;
+}
+
+/**
  * Merge partial addresses into the ui-v2 NeoX contract files for this
  * network's mode (plus the legacy single file, kept in sync as fallback).
  *
@@ -117,21 +187,7 @@ export function saveXContracts(
     );
     return {};
   }
-  const clean: Record<string, string> = {};
-  for (const [key, value] of Object.entries(partial)) {
-    if (value === undefined) continue;
-    // STAKING may be a comma-separated list of pool addresses.
-    const segments = String(value)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (segments.length === 0 || !segments.every(isEvmAddress)) {
-      throw new Error(
-        `[xContracts] refusing to write invalid address for "${key}": ${JSON.stringify(value)}`,
-      );
-    }
-    clean[key] = segments.join(",");
-  }
+  const clean = validateAddresses(partial);
   const dir = findUiDeployedContractsDir();
   for (const file of [MODE_FILES[mode], LEGACY_FILE]) {
     const target = path.join(dir, file);

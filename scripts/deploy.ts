@@ -1,9 +1,7 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
-import { saveXContracts } from "./xContracts";
-import path from "path";
-import fs from "fs";
+import { saveDeployedAddresses } from "./xContracts";
 
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
@@ -87,33 +85,7 @@ async function main() {
   console.log("DuoLaunch:", DuoLaunchAddress);
   console.log("tx:", LaunchRes.deploymentTransaction()?.hash ?? "unknown");
 
-  // Write deployed addresses to deployed.json (merge — never wipe keys
-  // written by other deploy scripts such as USDT/DUO/STAKING).
-  const contractsPath = path.resolve(__dirname, "..", "deployed.json");
-  let existingDeployed: Record<string, unknown> = {};
-  try {
-    existingDeployed = JSON.parse(fs.readFileSync(contractsPath, "utf-8"));
-  } catch {
-    existingDeployed = {};
-  }
-  const saved = {
-    ...(existingDeployed && typeof existingDeployed === "object"
-      ? existingDeployed
-      : {}),
-    FACTORY: factoryAddress,
-    ROUTER: routerAddress,
-    BONDING: DuoLaunchAddress,
-  };
-
-  fs.writeFileSync(contractsPath, JSON.stringify(saved, null, 2) + "\n");
-  console.log(
-    `\n[deploy Factory, Router, DuoLaunch] Saved Factory, Router, DuoLaunch contract addresses to ${contractsPath}`,
-  );
-  console.log(JSON.stringify(saved, null, 2));
-
-  // Sync to ui-v2/packages/config/src/deployedContracts/ (per-mode + legacy).
-  // Merge-only: keys from other scripts (USDT/DUO/...) are preserved.
-  saveXContracts(
+  const saved = saveDeployedAddresses(
     {
       FACTORY: factoryAddress,
       ROUTER: routerAddress,
@@ -121,6 +93,8 @@ async function main() {
     },
     hre.network.name,
   );
+  console.log("\nSaved deployed contract addresses:");
+  console.log(JSON.stringify(saved, null, 2));
 }
 
 main().catch((error) => {

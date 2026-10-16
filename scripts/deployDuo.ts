@@ -2,6 +2,7 @@ import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
+import { saveDeployedAddresses } from "./xContracts";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -31,8 +32,10 @@ async function main() {
   const token = await Token.deploy(totalSupply, treasury, owner, overrides);
   await token.waitForDeployment();
 
-  console.log("DuoToken:", await token.getAddress());
+  const duoAddress = await token.getAddress();
+  console.log("DuoToken:", duoAddress);
   console.log("Deploy tx:", token.deploymentTransaction()?.hash ?? "unknown");
+  saveDeployedAddresses({ DUO: duoAddress }, hre.network.name);
 }
 
 main().catch((error) => {
