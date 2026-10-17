@@ -11,3 +11,5 @@ out/
 cache_forge/
 cache-forge/
 deployed.anvil.json
+deployed.testnet.json
+deployed.mainnet.json

@@ -3,6 +3,7 @@ import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
 import { saveDeployedAddresses } from "./xContracts";
+import { requireContractCode } from "./contractCode";
 
 function parseBool(value: string | undefined, defaultValue = false): boolean {
   if (value === undefined) return defaultValue;
@@ -23,7 +24,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chain = resolveChainByNetwork(hre.network.name);
 
-  if (hre.network.name !== "hardhat") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "anvil") {
     if (!getRpcUrl(chain) || !chain.chainId || !chain.deployerPrivateKey) {
       throw new Error(
         `Missing chain config for network "${hre.network.name}". Check .env network values.`
@@ -43,9 +44,20 @@ async function main() {
       `Expected exactly one LP token in STAKING_POOLS for single-pool deployment; got ${lpTokens.length}.`,
     );
   }
+  if (!ethers.isAddress(duoTokenAddress)) {
+    throw new Error(`Invalid reward token address: ${duoTokenAddress}`);
+  }
+  if (!ethers.isAddress(lpTokens[0])) {
+    throw new Error(`Invalid LP token address in STAKING_POOLS: ${lpTokens[0]}`);
+  }
   if (shouldStartRewards && rewardBlocks <= 0n) {
     throw new Error("STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.");
   }
+
+  await Promise.all([
+    requireContractCode(ethers.provider, duoTokenAddress, "reward token"),
+    requireContractCode(ethers.provider, lpTokens[0], "LP token"),
+  ]);
 
   console.log("Network:", hre.network.name);
   console.log("Deployer:", deployer.address);
@@ -83,7 +95,10 @@ async function main() {
     await rewardTx.wait();
     console.log("startRewards tx:", rewardTx.hash);
   }
-  saveDeployedAddresses({ STAKING: stakingAddress }, hre.network.name);
+  saveDeployedAddresses(
+    { STAKING: stakingAddress, DUOGAS: lpToken },
+    hre.network.name,
+  );
 }
 
 main().catch((error) => {

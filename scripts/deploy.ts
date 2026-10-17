@@ -11,7 +11,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chain = resolveChainByNetwork(hre.network.name);
 
-  if (hre.network.name !== "hardhat") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "anvil") {
     if (
       !getRpcUrl(chain) ||
       !chain.chainId ||

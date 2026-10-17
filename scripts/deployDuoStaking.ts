@@ -5,8 +5,8 @@ import { buildTxOverrides } from "./tx";
 import { saveDeployedAddresses } from "./xContracts";
 import path from "path";
 import fs from "fs";
-
-const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
+import { deployedPathForNetwork } from "./deployedAddresses";
+import { requireContractCode } from "./contractCode";
 
 type DeployedData = {
   FACTORY?: unknown;
@@ -29,41 +29,32 @@ function parseBool(value: string | undefined, defaultValue = false): boolean {
   );
 }
 
-function parsePoolConfigs(raw: string | undefined): string[] {
-  if (!raw || !raw.trim()) return [];
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((entry) => entry.split(":")[0].trim());
-}
-
-function requireAddress(label: string, value: unknown): string {
+function requireAddress(label: string, value: unknown, deployedJson: string): string {
   if (typeof value !== "string" || !ethers.isAddress(value)) {
     throw new Error(
-      `Invalid or missing address for "${label}" in deployed.json. Got: ${JSON.stringify(value)}`,
+      `Invalid or missing address for "${label}" in ${path.basename(deployedJson)}. Got: ${JSON.stringify(value)}`,
     );
   }
   return value;
 }
 
-function readDeployed(): DeployedData {
-  if (!fs.existsSync(DEPLOYED_JSON)) {
+function readDeployed(deployedJson: string): DeployedData {
+  if (!fs.existsSync(deployedJson)) {
     throw new Error(
-      `deployed.json not found at ${DEPLOYED_JSON}. Run the base deployment script first.`,
+      `${path.basename(deployedJson)} not found at ${deployedJson}. Run the base deployment script for this network first.`,
     );
   }
   let raw: string;
   try {
-    raw = fs.readFileSync(DEPLOYED_JSON, "utf-8");
+    raw = fs.readFileSync(deployedJson, "utf-8");
   } catch (err) {
-    throw new Error(`Failed to read deployed.json: ${(err as Error).message}`);
+    throw new Error(`Failed to read ${path.basename(deployedJson)}: ${(err as Error).message}`);
   }
   try {
     return JSON.parse(raw) as DeployedData;
   } catch (err) {
     throw new Error(
-      `deployed.json is not valid JSON: ${(err as Error).message}`,
+      `${path.basename(deployedJson)} is not valid JSON: ${(err as Error).message}`,
     );
   }
 }
@@ -72,7 +63,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chain = resolveChainByNetwork(hre.network.name);
 
-  if (hre.network.name !== "hardhat") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "anvil") {
     if (!getRpcUrl(chain) || !chain.chainId || !chain.deployerPrivateKey) {
       throw new Error(
         `Missing chain config for network "${hre.network.name}". Check .env network values.`,
@@ -80,8 +71,9 @@ async function main() {
     }
   }
 
-  const deployed = readDeployed();
-  const factoryAddress = requireAddress("FACTORY", deployed.FACTORY);
+  const deployedJson = deployedPathForNetwork(hre.network.name);
+  const deployed = readDeployed(deployedJson);
+  const factoryAddress = requireAddress("FACTORY", deployed.FACTORY, deployedJson);
 
   const totalSupply = ethers.parseUnits(
     requireEnvByNetwork(hre.network.name, "TOTAL_SUPPLY"),
@@ -110,21 +102,21 @@ async function main() {
   const shouldStartRewards = parseBool(
     getEnvByNetwork(hre.network.name, "INIT_REWARDS"),
   );
-  const lpTokens = parsePoolConfigs(
-    getEnvByNetwork(hre.network.name, "STAKING_POOLS"),
-  );
-
   if (!chain.wgasAddress) {
     throw new Error("Missing WGAS address.");
   }
   if (!ethers.isAddress(chain.wgasAddress)) {
     throw new Error(`Invalid chain.wgasAddress: ${chain.wgasAddress}`);
   }
-  for (const lpToken of lpTokens) {
-    if (!ethers.isAddress(lpToken)) {
-      throw new Error(`Invalid LP token address in STAKING_POOLS: ${lpToken}`);
-    }
+  if (shouldStartRewards && rewardBlocks <= 0n) {
+    throw new Error(
+      "STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.",
+    );
   }
+  await Promise.all([
+    requireContractCode(ethers.provider, factoryAddress, "UniswapV2Factory"),
+    requireContractCode(ethers.provider, chain.wgasAddress, "WGAS token"),
+  ]);
 
   console.log("Network:", hre.network.name);
   console.log("Deployer:", deployer.address);
@@ -137,7 +129,6 @@ async function main() {
   console.log("Total supply:", ethers.formatUnits(totalSupply, 18));
   console.log("WGAS:", chain.wgasAddress);
   console.log("Factory:", factoryAddress);
-  console.log("STAKING_POOLS count:", lpTokens.length);
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
 
@@ -146,6 +137,7 @@ async function main() {
   const token = await Token.deploy(totalSupply, treasury, owner, overrides);
   await token.waitForDeployment();
   const duoAddress = await token.getAddress();
+  await requireContractCode(ethers.provider, duoAddress, "DuoToken");
 
   console.log("DuoToken:", duoAddress);
   console.log("Deploy tx:", token.deploymentTransaction()?.hash ?? "unknown");
@@ -163,23 +155,13 @@ async function main() {
       `createPair returned zero/empty pair address. tx: ${createPairTx.hash ?? "unknown"}`,
     );
   }
+  await requireContractCode(ethers.provider, DUOGAS, "DUO-WGAS pair");
   console.log("DUO-WGAS Pair:", DUOGAS);
   console.log("CreatePair tx:", createPairTx.hash);
 
-  // 3. Deploy DuoSwapStaking for each LP token
-  if (lpTokens.length !== 1) {
-    throw new Error(
-      `Expected exactly one LP token in STAKING_POOLS for single-pool deployment; got ${lpTokens.length}.`,
-    );
-  }
-  if (shouldStartRewards && rewardBlocks <= 0n) {
-    throw new Error(
-      "STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.",
-    );
-  }
-
+  // 3. Deploy DuoSwapStaking for the DUO-WGAS pair
   const Staking = await ethers.getContractFactory("DuoSwapStaking");
-  const lpToken = lpTokens[0];
+  const lpToken = DUOGAS;
   const staking = await Staking.deploy(
     lpToken,
     duoAddress,
@@ -211,7 +193,7 @@ async function main() {
     console.log("startRewards tx:", rewardTx.hash);
   }
 
-  if (hre.network.name !== "hardhat") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "anvil") {
     if (!getRpcUrl(chain) || !chain.chainId || !chain.deployerPrivateKey) {
       throw new Error(
         `Missing chain config for network "${hre.network.name}". Check .env network values.`,
@@ -240,7 +222,7 @@ async function main() {
     "Decimals: 4, Total supply: 1000000 USDT (10000000000 base units)",
   );
 
-  // 4. Update deployed.json with new addresses (uppercase keys match existing schema)
+  // 4. Update the selected network's deployment file.
   saveDeployedAddresses(
     {
       USDT: usdtAddress,

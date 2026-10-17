@@ -59,7 +59,7 @@ async function main() {
   // 1 ── Connect to DuoLaunch
   console.log("1. Connecting to DuoLaunch...");
   const code = await ethers.provider.getCode(deployed.BONDING);
-  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.BONDING}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, legacy)`);
+  assert.notStrictEqual(code, "0x", `No bytecode at ${deployed.BONDING}. Run with --network <network> where the contracts are deployed (e.g. anvil, neoxTestnet, neoxMainnet)`);
   const pump: any = await ethers.getContractAt(PUMP_ABI, deployed.BONDING);
   const pumpArtifact = await hre.artifacts.readArtifact("contracts/duoLaunch/DuoLaunch.sol:DuoLaunch");
   pumpIface = new ethers.Interface(pumpArtifact.abi);

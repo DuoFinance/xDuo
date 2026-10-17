@@ -126,9 +126,13 @@ npm run deploy:usdt:testnet  # MockUSDT (test token) → neoxTestnet
 npm run deploy:usdt:mainnet  # MockUSDT (test token) → neoxMainnet
 ```
 
-`scripts/deploy.ts` writes deployed addresses to `deployed.json` (and the UI config path).
+Deployment scripts keep address files separate by network:
+`deployed.json` for legacy/default compatibility, `deployed.testnet.json` for NeoX testnet,
+`deployed.mainnet.json` for NeoX mainnet, and `deployed.anvil.json` for the
+local Anvil fork. The network-specific files are git-ignored. Deployments also
+sync addresses to the corresponding UI config file.
 
-Anvil live tests never touch `deployed.json`: `npm run anvil:setup` writes the local
+Anvil live tests never touch the network deployment files: `npm run anvil:setup` writes the local
 Factory/Router/BONDING addresses to `deployed.anvil.json` (same uppercase key schema,
 git-ignored), and `scripts/liveTest/*.ts` read it through `loadDeployed()`.
 

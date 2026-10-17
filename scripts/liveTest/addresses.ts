@@ -1,22 +1,21 @@
 import hre from "hardhat";
 import * as fs from "fs";
 import path from "path";
-
-const ROOT = path.resolve(__dirname, "..", "..");
+import { deployedPathForNetwork } from "../deployedAddresses";
 
 /**
  * Frontend / deploy-script aligned address file (uppercase keys).
  * Live tests only ever read it — never write it.
  */
-export const DEPLOYED_PATH = path.join(ROOT, "deployed.json");
+export const MAINNET_DEPLOYED_PATH = deployedPathForNetwork("neoxMainnet");
 
 /**
  * Local Anvil addresses produced by setupAnvil.ts. Same uppercase schema as
- * deployed.json, but git-ignored and never synced to the UI.
+ * network deployment files, but git-ignored and never synced to the UI.
  */
-export const ANVIL_DEPLOYED_PATH = path.join(ROOT, "deployed.anvil.json");
+export const ANVIL_DEPLOYED_PATH = deployedPathForNetwork("anvil");
 
-/** Uppercase key schema shared by deployed.json and deployed.anvil.json. */
+/** Uppercase key schema shared by network deployment files. */
 export type DeployedAddresses = {
   FACTORY: string;
   ROUTER: string;
@@ -44,7 +43,7 @@ function readJson(file: string): Record<string, unknown> {
   }
 }
 
-/** deployed.json carries no WGAS entry — it lives in .env per network. */
+/** Network deployment files generally omit WGAS — it lives in .env per network. */
 function envWgas(network: string): string | undefined {
   const candidates =
     network === "neoxTestnet"
@@ -53,14 +52,14 @@ function envWgas(network: string): string | undefined {
         ? [process.env.NEOX_MAINNET_WGAS_ADDRESS, process.env.NEOX_WGAS_ADDRESS]
         : network === "anvil"
           ? // Anvil forks NeoX mainnet.
-            [process.env.NEOX_MAINNET_WGAS_ADDRESS, process.env.LEGACY_WGAS_ADDRESS]
-          : [process.env.LEGACY_WGAS_ADDRESS];
+            [process.env.ANVIL_WGAS_ADDRESS, process.env.NEOX_MAINNET_WGAS_ADDRESS]
+          : [process.env.NEOX_MAINNET_WGAS_ADDRESS];
   return candidates.find(isAddressLike);
 }
 
 /** Address file backing live tests on the given network. */
 export function deployedPathFor(network: string): string {
-  return network === "anvil" ? ANVIL_DEPLOYED_PATH : DEPLOYED_PATH;
+  return deployedPathForNetwork(network);
 }
 
 /** Load deployed contract addresses (uppercase schema) for a network. */

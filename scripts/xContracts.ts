@@ -6,10 +6,9 @@ import {
   writeFileSync,
 } from "fs";
 import path from "path";
+import { deployedPathForNetwork } from "./deployedAddresses";
 
 export type XDeployMode = "selfnet" | "testnet" | "mainnet";
-
-const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
 
 const MODE_FILES: Record<XDeployMode, string> = {
   selfnet: "x_contracts.selfnet.json",
@@ -48,7 +47,7 @@ function validateAddresses(
 
 /**
  * Hardhat network name -> ui-v2 deploy mode.
- * - anvil / localhost / legacy: local node (1337) -> selfnet file.
+ * - anvil / localhost: local node (1337) -> selfnet file.
  * - neoxTestnet / neoxMainnet: -> testnet / mainnet file.
  * - hardhat (in-process, ephemeral) and anything unknown -> null (skip sync;
  *   those addresses vanish on exit, writing them would pollute the frontend).
@@ -57,7 +56,6 @@ export function xModeForNetwork(hreNetworkName: string): XDeployMode | null {
   switch (hreNetworkName) {
     case "anvil":
     case "localhost":
-    case "legacy":
       return "selfnet";
     case "neoxTestnet":
       return "testnet";
@@ -130,17 +128,18 @@ export function saveDeployedAddresses(
   hreNetworkName: string,
 ): Record<string, string> {
   const clean = validateAddresses(partial);
+  const deployedJson = deployedPathForNetwork(hreNetworkName);
   let existing: Record<string, unknown> = {};
-  if (existsSync(DEPLOYED_JSON)) {
+  if (existsSync(deployedJson)) {
     try {
-      const parsed: unknown = JSON.parse(readFileSync(DEPLOYED_JSON, "utf-8"));
+      const parsed: unknown = JSON.parse(readFileSync(deployedJson, "utf-8"));
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("expected a JSON object");
       }
       existing = parsed as Record<string, unknown>;
     } catch (err) {
       throw new Error(
-        `[xContracts] failed to read ${DEPLOYED_JSON}: ${(err as Error).message}`,
+        `[xContracts] failed to read ${deployedJson}: ${(err as Error).message}`,
       );
     }
   }
@@ -156,12 +155,12 @@ export function saveDeployedAddresses(
     const previous = existing[key];
     if (previous !== undefined && previous !== value) {
       console.warn(
-        `[xContracts] overwriting deployed.json["${key}"]: ${JSON.stringify(previous)} -> ${JSON.stringify(value)}`,
+        `[xContracts] overwriting ${path.basename(deployedJson)}["${key}"]: ${JSON.stringify(previous)} -> ${JSON.stringify(value)}`,
       );
     }
   }
-  atomicWriteJson(DEPLOYED_JSON, deployed);
-  console.log(`[xContracts] saved deployed addresses -> ${DEPLOYED_JSON}`);
+  atomicWriteJson(deployedJson, deployed);
+  console.log(`[xContracts] saved deployed addresses -> ${deployedJson}`);
   saveXContracts(clean, hreNetworkName);
   return clean;
 }

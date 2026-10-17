@@ -1,7 +1,8 @@
 import hre from "hardhat";
 const { ethers } = hre;
 import * as fs from "fs";
-import { ANVIL_DEPLOYED_PATH, DEPLOYED_PATH } from "./addresses";
+import { ANVIL_DEPLOYED_PATH, MAINNET_DEPLOYED_PATH } from "./addresses";
+import { saveXContracts } from "../xContracts";
 
 function readJson(file: string): Record<string, unknown> {
   try {
@@ -34,18 +35,18 @@ async function main() {
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Balance:", ethers.formatEther(balance), "\n");
 
-  // 1. Resolve WGAS: previous anvil run -> frontend deployed.json -> env.
+  // 1. Resolve WGAS: previous Anvil run -> mainnet deployment -> env.
   //    Anvil forks NeoX mainnet, so the mainnet WGAS address is the one that
   //    exists on-chain. deployed.json itself never carries a WGAS entry.
   const previousAnvil = readJson(ANVIL_DEPLOYED_PATH);
-  const frontendDeployed = readJson(DEPLOYED_PATH);
+  const frontendDeployed = readJson(MAINNET_DEPLOYED_PATH);
 
   const wgasAddr = pickAddress(
     previousAnvil.WGAS,
     frontendDeployed.WGAS,
     frontendDeployed.WGAS_ADDRESS,
+    process.env.ANVIL_WGAS_ADDRESS,
     process.env.NEOX_MAINNET_WGAS_ADDRESS,
-    process.env.LEGACY_WGAS_ADDRESS,
   );
   if (!wgasAddr) {
     throw new Error(
@@ -98,6 +99,18 @@ async function main() {
   fs.writeFileSync(ANVIL_DEPLOYED_PATH, JSON.stringify(saved, null, 2) + "\n");
   console.log(`\n5. Saved ${ANVIL_DEPLOYED_PATH}`);
   console.log(JSON.stringify(saved, null, 2));
+  const frontendAddresses: Record<string, string> = {
+    FACTORY: factoryAddr,
+    ROUTER: routerAddr,
+    BONDING: pumpAddr,
+    WGAS: wgasAddr,
+  };
+  const stakingAddress = pickAddress(previousAnvil.STAKING);
+  if (stakingAddress) {
+    frontendAddresses.STAKING = stakingAddress;
+  }
+  saveXContracts(frontendAddresses, hre.network.name);
+
   console.log("\n✅ Anvil setup complete!");
 }
 

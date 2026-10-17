@@ -4,14 +4,13 @@ import { requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
 import fs from "fs";
 import path from "path";
+import { deployedPathForNetwork } from "./deployedAddresses";
 
 type StakingAction =
   | "startRewards"
   | "fundAndStartRewards"
   | "addRewards"
   | "recoverEndedRewards";
-
-const DEPLOYED_JSON = path.resolve(__dirname, "..", "deployed.json");
 
 function parseAction(value: string): StakingAction {
   switch (value.trim()) {
@@ -27,17 +26,24 @@ function parseAction(value: string): StakingAction {
   }
 }
 
-function readDeployedAddresses(): { staking: string; duoGas: string } {
+function readDeployedAddresses(
+  networkName: string,
+): { staking: string; duoGas: string } {
+  const deployedJson = deployedPathForNetwork(networkName);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(fs.readFileSync(DEPLOYED_JSON, "utf-8"));
+    parsed = JSON.parse(fs.readFileSync(deployedJson, "utf-8"));
   } catch (err) {
     throw new Error(
-      `Failed to read deployed.json at ${DEPLOYED_JSON}: ${(err as Error).message}`,
+      `Failed to read ${path.basename(deployedJson)} at ${deployedJson}: ${
+        (err as Error).message
+      }`,
     );
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`Invalid deployed.json at ${DEPLOYED_JSON}: expected an object.`);
+    throw new Error(
+      `Invalid ${path.basename(deployedJson)} at ${deployedJson}: expected an object.`,
+    );
   }
 
   const data = parsed as Record<string, unknown>;
@@ -45,12 +51,12 @@ function readDeployedAddresses(): { staking: string; duoGas: string } {
   const duoGas = data.DUOGAS;
   if (typeof staking !== "string" || !ethers.isAddress(staking.trim())) {
     throw new Error(
-      `deployed.json must contain one valid STAKING address; got ${JSON.stringify(staking)}.`,
+      `${path.basename(deployedJson)} must contain one valid STAKING address; got ${JSON.stringify(staking)}.`,
     );
   }
   if (typeof duoGas !== "string" || !ethers.isAddress(duoGas.trim())) {
     throw new Error(
-      `deployed.json must contain one valid DUOGAS address; got ${JSON.stringify(duoGas)}.`,
+      `${path.basename(deployedJson)} must contain one valid DUOGAS address; got ${JSON.stringify(duoGas)}.`,
     );
   }
 
@@ -90,7 +96,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chain = resolveChainByNetwork(hre.network.name);
 
-  if (hre.network.name !== "hardhat") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "anvil") {
     if (!getRpcUrl(chain) || !chain.chainId || !chain.deployerPrivateKey) {
       throw new Error(
         `Missing chain config for network "${hre.network.name}". Check .env network values.`
@@ -107,7 +113,7 @@ async function main() {
   console.log("Action:", action);
 
   const { staking: stakingAddress, duoGas: configuredDuoGas } =
-    readDeployedAddresses();
+    readDeployedAddresses(hre.network.name);
   const staking = await ethers.getContractAt("DuoSwapStaking", stakingAddress);
   const [stakingOwner, stakingLpToken] = await Promise.all([
     staking.owner(),
@@ -120,7 +126,7 @@ async function main() {
   }
   if (stakingLpToken.toLowerCase() !== configuredDuoGas.toLowerCase()) {
     throw new Error(
-      `DUOGAS in deployed.json (${configuredDuoGas}) does not match staking contract LP token (${stakingLpToken}).`,
+      `DUOGAS in ${path.basename(deployedPathForNetwork(hre.network.name))} (${configuredDuoGas}) does not match staking contract LP token (${stakingLpToken}).`,
     );
   }
 

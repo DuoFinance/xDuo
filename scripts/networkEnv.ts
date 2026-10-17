@@ -1,5 +1,5 @@
 const NETWORK_ENV_PREFIXES: Record<string, string[]> = {
-  legacy: ["DUO_LEGACY_", "OS_LEGACY_"],
+  anvil: ["ANVIL_"],
   neoxTestnet: ["DUO_TESTNET_", "OS_TESTNET_", "OS_NEOX_TESTNET_"],
   neoxMainnet: ["DUO_MAINNET_", "OS_MAINNET_", "OS_NEOX_MAINNET_"]
 };
