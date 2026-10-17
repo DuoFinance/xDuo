@@ -1,30 +1,10 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
-import { requireEnvByNetwork } from "./networkEnv";
+import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
 import fs from "fs";
 import path from "path";
 import { deployedPathForNetwork } from "./deployedAddresses";
-
-type StakingAction =
-  | "startRewards"
-  | "fundAndStartRewards"
-  | "addRewards"
-  | "recoverEndedRewards";
-
-function parseAction(value: string): StakingAction {
-  switch (value.trim()) {
-    case "startRewards":
-    case "fundAndStartRewards":
-    case "addRewards":
-    case "recoverEndedRewards":
-      return value.trim() as StakingAction;
-    default:
-      throw new Error(
-        `Unsupported staking action "${value}". Expected one of startRewards, fundAndStartRewards, addRewards, recoverEndedRewards.`
-      );
-  }
-}
 
 function readDeployedAddresses(
   networkName: string,
@@ -104,13 +84,11 @@ async function main() {
     }
   }
 
-  const action = parseAction(requireEnvByNetwork(hre.network.name, "STAKING_ACTION"));
   const overrides = await buildTxOverrides(ethers.provider, chain, 6_000_000n);
 
   console.log("Network:", hre.network.name);
   console.log("Deployer:", deployer.address);
   console.log("RPC mode:", chain.antiMevRpcUrl ? "anti-mev/private RPC" : "standard RPC");
-  console.log("Action:", action);
 
   const { staking: stakingAddress, duoGas: configuredDuoGas } =
     readDeployedAddresses(hre.network.name);
@@ -129,50 +107,29 @@ async function main() {
       `DUOGAS in ${path.basename(deployedPathForNetwork(hre.network.name))} (${configuredDuoGas}) does not match staking contract LP token (${stakingLpToken}).`,
     );
   }
+  if (!(await staking.rewardsStarted())) {
+    throw new Error(
+      `Staking contract ${stakingAddress} has not started rewards; deploy it with INIT_REWARDS=true before adding rewards.`,
+    );
+  }
 
   console.log("Staking:", stakingAddress);
   console.log("DUOGAS:", configuredDuoGas);
   console.log("Staking owner:", stakingOwner);
 
-  if (action === "startRewards") {
-    const rewardBlocks = requireBigInt(hre.network.name, "STAKING_REWARD_BLOCKS");
-    console.log("Reward blocks:", rewardBlocks.toString());
+  const rewardAmount = requireBigInt(hre.network.name, "STAKING_REWARD_AMOUNT");
+  const rewardBlocks = requireBigInt(hre.network.name, "STAKING_REWARD_BLOCKS");
+  const rewardToken = await staking.rewardToken();
 
-    const tx = await staking.startRewards(rewardBlocks, overrides);
-    await tx.wait();
-    console.log("startRewards tx:", tx.hash);
-    return;
-  }
+  console.log("Reward token:", rewardToken);
+  console.log("Reward amount:", rewardAmount.toString());
+  console.log("Reward blocks:", rewardBlocks.toString());
 
-  if (action === "fundAndStartRewards" || action === "addRewards") {
-    const rewardAmount = requireBigInt(hre.network.name, "STAKING_REWARD_AMOUNT");
-    const rewardBlocks = requireBigInt(hre.network.name, "STAKING_REWARD_BLOCKS");
-    const rewardToken = await staking.rewardToken();
+  await approveIfNeeded(rewardToken, deployer.address, stakingAddress, rewardAmount, overrides);
 
-    console.log("Reward token:", rewardToken);
-    console.log("Reward amount:", rewardAmount.toString());
-    console.log("Reward blocks:", rewardBlocks.toString());
-
-    await approveIfNeeded(rewardToken, deployer.address, stakingAddress, rewardAmount, overrides);
-
-    const tx =
-      action === "fundAndStartRewards"
-        ? await staking.fundAndStartRewards(rewardAmount, rewardBlocks, overrides)
-        : await staking.addRewards(rewardAmount, rewardBlocks, overrides);
-    await tx.wait();
-    console.log('%s tx:', action, tx.hash);
-    return;
-  }
-
-  const recoveryTo = requireEnvByNetwork(hre.network.name, "STAKING_RECOVERY_TO");
-  const recoveryAmount = requireBigInt(hre.network.name, "STAKING_RECOVERY_AMOUNT");
-
-  console.log("Recovery to:", recoveryTo);
-  console.log("Recovery amount:", recoveryAmount.toString());
-
-  const tx = await staking.recoverEndedRewards(recoveryTo, recoveryAmount, overrides);
+  const tx = await staking.addRewards(rewardAmount, rewardBlocks, overrides);
   await tx.wait();
-  console.log("recoverEndedRewards tx:", tx.hash);
+  console.log("addRewards tx:", tx.hash);
 }
 
 main().catch((error) => {

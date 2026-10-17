@@ -1,9 +1,12 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
-import { getEnvByNetwork, requireEnvByNetwork } from "./networkEnv";
+import { getEnvByNetwork } from "./networkEnv";
 import { buildTxOverrides } from "./tx";
 import { saveDeployedAddresses } from "./xContracts";
 import { requireContractCode } from "./contractCode";
+import { deployedPathForNetwork } from "./deployedAddresses";
+import fs from "fs";
+import path from "path";
 
 function parseBool(value: string | undefined, defaultValue = false): boolean {
   if (value === undefined) return defaultValue;
@@ -11,13 +14,40 @@ function parseBool(value: string | undefined, defaultValue = false): boolean {
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "y";
 }
 
-function parsePoolConfigs(raw: string | undefined): string[] {
-  if (!raw || !raw.trim()) return [];
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((entry) => entry.split(":")[0].trim());
+function readTokenAddresses(networkName: string): {
+  duoTokenAddress: string;
+  duoGasPairAddress: string;
+} {
+  const file = deployedPathForNetwork(networkName);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Failed to read ${path.basename(file)} at ${file}: ${(error as Error).message}`,
+    );
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${path.basename(file)} must contain a JSON object.`);
+  }
+
+  const data = parsed as Record<string, unknown>;
+  const duoTokenAddress = data.DUO;
+  const duoGasPairAddress = data.DUOGAS;
+  if (typeof duoTokenAddress !== "string" || !ethers.isAddress(duoTokenAddress)) {
+    throw new Error(
+      `${path.basename(file)} must contain a valid DUO address; got ${JSON.stringify(duoTokenAddress)}.`,
+    );
+  }
+  if (
+    typeof duoGasPairAddress !== "string" ||
+    !ethers.isAddress(duoGasPairAddress)
+  ) {
+    throw new Error(
+      `${path.basename(file)} must contain a valid DUOGAS pair address; got ${JSON.stringify(duoGasPairAddress)}.`,
+    );
+  }
+  return { duoTokenAddress, duoGasPairAddress };
 }
 
 async function main() {
@@ -32,31 +62,20 @@ async function main() {
     }
   }
 
-  const duoTokenAddress = requireEnvByNetwork(hre.network.name, "TOKEN_ADDRESS");
+  const { duoTokenAddress, duoGasPairAddress } = readTokenAddresses(
+    hre.network.name,
+  );
   const stakingOwner = getEnvByNetwork(hre.network.name, "STAKING_OWNER") ?? deployer.address;
   const rewardBlocks = BigInt(getEnvByNetwork(hre.network.name, "STAKING_REWARD_BLOCKS") ?? "0");
   const shouldInitAllocation = parseBool(getEnvByNetwork(hre.network.name, "INIT_ALLOCATION"));
   const shouldStartRewards = parseBool(getEnvByNetwork(hre.network.name, "INIT_REWARDS"));
-  const lpTokens = parsePoolConfigs(getEnvByNetwork(hre.network.name, "STAKING_POOLS"));
-
-  if (lpTokens.length !== 1) {
-    throw new Error(
-      `Expected exactly one LP token in STAKING_POOLS for single-pool deployment; got ${lpTokens.length}.`,
-    );
-  }
-  if (!ethers.isAddress(duoTokenAddress)) {
-    throw new Error(`Invalid reward token address: ${duoTokenAddress}`);
-  }
-  if (!ethers.isAddress(lpTokens[0])) {
-    throw new Error(`Invalid LP token address in STAKING_POOLS: ${lpTokens[0]}`);
-  }
   if (shouldStartRewards && rewardBlocks <= 0n) {
     throw new Error("STAKING_REWARD_BLOCKS must be set when INIT_REWARDS=true.");
   }
 
   await Promise.all([
     requireContractCode(ethers.provider, duoTokenAddress, "reward token"),
-    requireContractCode(ethers.provider, lpTokens[0], "LP token"),
+    requireContractCode(ethers.provider, duoGasPairAddress, "DUO-GAS pair"),
   ]);
 
   console.log("Network:", hre.network.name);
@@ -67,7 +86,7 @@ async function main() {
 
   const overrides = await buildTxOverrides(ethers.provider, chain, 5_000_000n);
   const Staking = await ethers.getContractFactory("DuoSwapStaking");
-  const lpToken = lpTokens[0];
+  const lpToken = duoGasPairAddress;
   const staking = await Staking.deploy(
     lpToken,
     duoTokenAddress,
@@ -95,10 +114,7 @@ async function main() {
     await rewardTx.wait();
     console.log("startRewards tx:", rewardTx.hash);
   }
-  saveDeployedAddresses(
-    { STAKING: stakingAddress, DUOGAS: lpToken },
-    hre.network.name,
-  );
+  saveDeployedAddresses({ STAKING: stakingAddress }, hre.network.name);
 }
 
 main().catch((error) => {

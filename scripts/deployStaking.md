@@ -7,13 +7,15 @@ npm run deploy:staking:anvil
 npm run manage:staking:anvil
 ```
 
-Set `STAKING_POOLS` to exactly one LP token address and `TOKEN_ADDRESS` to the
-reward token address before deploying. The script saves the staking contract
-address as `STAKING` and the LP token as `DUOGAS` in the network's address file.
-For Anvil, configure values with the `ANVIL_` prefix or shared `DUO_` prefix.
+Before deploying staking, deploy DUO and its DUO-GAS pair. The staking script
+loads `DUO` and `DUOGAS` from the selected network's address file and verifies
+that both addresses have contract code on the connected chain. Configure only
+deployment parameters such as staking owner, reward blocks, and reward-start
+options in `.env`.
 
 The Anvil commands store and read addresses from `deployed.anvil.json`, keeping
 local fork addresses separate from network deployments. NeoX testnet and mainnet
 use `deployed.testnet.json` and `deployed.mainnet.json`, respectively.
 `scripts/manageStaking.ts` checks that the connected wallet owns the staking
-contract before sending management transactions.
+contract before sending transactions and only adds rewards to an already-started
+pool. It reads the reward amount and duration from `.env`.
