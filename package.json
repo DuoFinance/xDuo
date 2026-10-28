@@ -13,27 +13,27 @@
     "anvil": "bash scripts/liveTest/anvil.sh",
     "anvil:setup": "npx hardhat run scripts/liveTest/setupAnvil.ts --network anvil",
     
-    "deploy:anvil": "hardhat run scripts/deploy.ts --network anvil",
-    "deploy:testnet": "hardhat run scripts/deploy.ts --network neoxTestnet",
-    "deploy:mainnet": "hardhat run scripts/deploy.ts --network neoxMainnet",
-    
-    "deploy:duo-pair:anvil": "hardhat run scripts/deployDuoPair.ts --network anvil",
+    "anvil:deploy": "hardhat run scripts/deploy.ts --network anvil",
+    "testnet:deploy": "hardhat run scripts/deploy.ts --network neoxTestnet",
+    "mainnet:deploy": "hardhat run scripts/deploy.ts --network neoxMainnet",
 
-    "manage:staking:anvil": "hardhat run scripts/manageStaking.ts --network anvil",
-    "manage:staking:testnet": "hardhat run scripts/manageStaking.ts --network neoxTestnet",
-    "manage:staking:mainnet": "hardhat run scripts/manageStaking.ts --network neoxMainnet",
-  
-    "deploy:Duo+Staking:anvil": "hardhat run scripts/deployDuoStaking.ts --network anvil",
-    "deploy:Duo+Staking:testnet": "hardhat run scripts/deployDuoStaking.ts --network neoxTestnet",
-    "deploy:Duo+Staking:mainnet": "hardhat run scripts/deployDuoStaking.ts --network neoxMainnet",
-    
-    "deploy:usdt:anvil": "hardhat run scripts/deployUsdt.ts --network anvil",
-    "deploy:usdt:testnet": "hardhat run scripts/deployUsdt.ts --network neoxTestnet",
-    "deploy:usdt:mainnet": "hardhat run scripts/deployUsdt.ts --network neoxMainnet",
+    "anvil:deploy:duo-pair": "hardhat run scripts/deployDuoPair.ts --network anvil",
 
-    "deploy:staking-factory:anvil": "hardhat run scripts/deployStakingFactory.ts --network anvil",
-    "deploy:staking-factory:testnet": "hardhat run scripts/deployStakingFactory.ts --network neoxTestnet",
-    "deploy:staking-factory:mainnet": "hardhat run scripts/deployStakingFactory.ts --network neoxMainnet"
+    "anvil:manage:staking": "hardhat run scripts/manageStaking.ts --network anvil",
+    "testnet:manage:staking": "hardhat run scripts/manageStaking.ts --network neoxTestnet",
+    "mainnet:manage:staking": "hardhat run scripts/manageStaking.ts --network neoxMainnet",
+
+    "anvil:deploy:Duo+Staking": "hardhat run scripts/deployDuoStaking.ts --network anvil",
+    "testnet:deploy:Duo+Staking": "hardhat run scripts/deployDuoStaking.ts --network neoxTestnet",
+    "mainnet:deploy:Duo+Staking": "hardhat run scripts/deployDuoStaking.ts --network neoxMainnet",
+
+    "anvil:deploy:usdt": "hardhat run scripts/deployUsdt.ts --network anvil",
+    "testnet:deploy:usdt": "hardhat run scripts/deployUsdt.ts --network neoxTestnet",
+    "mainnet:deploy:usdt": "hardhat run scripts/deployUsdt.ts --network neoxMainnet",
+
+    "anvil:deploy:staking-factory": "hardhat run scripts/deployStakingFactory.ts --network anvil",
+    "testnet:deploy:staking-factory": "hardhat run scripts/deployStakingFactory.ts --network neoxTestnet",
+    "mainnet:deploy:staking-factory": "hardhat run scripts/deployStakingFactory.ts --network neoxMainnet"
   },
   "overrides": {
     "adm-zip": ">=0.6.0",
