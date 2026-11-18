@@ -247,6 +247,14 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
 
       expect(actualGas).to.equal(quotedGAS);
     });
+
+    it("reverts when getGasForTokens exceeds the sale's raised GAS", async function () {
+      await deploy(8000);
+      await duoLaunch.connect(user1).buy(tokenAddr, 0n, { value: ethers.parseEther("10") });
+
+      await expect(duoLaunch.getGASForTokens(tokenAddr, TOTAL_SUPPLY))
+        .to.be.revertedWith("INSUFFICIENT_GAS");
+    });
   });
 
   // ─── INVARIANT 7: post-graduation price continuity ────────
@@ -305,17 +313,15 @@ describe("DuoLaunch Invariants & Boundary Tests", function () {
     // });
 
     it("reverts P < 6000", async function () {
-      const [o] = await ethers.getSigners();
-      const p = await new DuoLaunch__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
-      await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 5999, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MIN");
+      await deploy(8000);
+      await expect(duoLaunch.createSale("X", "X", 5999, ethers.parseEther("1000"), "", "", "", ""))
+        .to.be.revertedWith("INVALID_GRADUATION_MIN");
     });
 
     it("reverts P > 9999", async function () {
-      const [o] = await ethers.getSigners();
-      const p = await new DuoLaunch__factory(o).deploy(ethers.ZeroAddress, ethers.ZeroAddress);
-      await p.waitForDeployment();
-      await expect(p.createSale("X", "X", 10000, ethers.parseEther("1000"), "", "", "", "")).to.be.revertedWith("INVALID_GRADUATION_MAX");
+      await deploy(8000);
+      await expect(duoLaunch.createSale("X", "X", 10000, ethers.parseEther("1000"), "", "", "", ""))
+        .to.be.revertedWith("INVALID_GRADUATION_MAX");
     });
 
     it("accepts P = 6000 (minimum valid)", async function () {

@@ -51,6 +51,8 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
     /// @param uniswapFactory_ Uniswap V2 Factory address
     /// @param weth_ WGAS10 address
     constructor(address uniswapFactory_, address weth_) {
+        require(uniswapFactory_ != address(0), "ZERO_ADDRESS");
+        require(weth_ != address(0), "ZERO_ADDRESS");
         uniswapFactory = uniswapFactory_;
         weth = weth_;
     }
@@ -385,6 +387,7 @@ contract DuoLaunch is IDuo, ReentrancyGuard {
         uint256 GASReserve   = s.virtualGAS + s.GASRaised;
         uint256 tokenReserve = s.virtualToken - s.tokensSold;
         uint256 GASOut = CurveMath.getAmountOut(tokenReserve, GASReserve, tokenAmount);
+        require(GASOut <= s.GASRaised, "INSUFFICIENT_GAS");
         // Deduct fee from the output (same as sell())
         address feeTo = IUniswapV2Factory(uniswapFactory).feeTo();
         if (feeTo != address(0)) {

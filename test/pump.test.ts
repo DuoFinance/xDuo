@@ -30,6 +30,20 @@ describe("DuoLaunch — static functions", function () {
     await duoLaunch.waitForDeployment();
   });
 
+  describe("constructor", function () {
+    it("rejects a zero Uniswap factory address", async function () {
+      await expect(
+        new DuoLaunch__factory(owner).deploy(ethers.ZeroAddress, wethAddr)
+      ).to.be.revertedWith("ZERO_ADDRESS");
+    });
+
+    it("rejects a zero WETH address", async function () {
+      await expect(
+        new DuoLaunch__factory(owner).deploy(factoryAddr, ethers.ZeroAddress)
+      ).to.be.revertedWith("ZERO_ADDRESS");
+    });
+  });
+
   describe("uniswapFactory", function () {
     it("returns the Uniswap factory address from constructor", async function () {
       expect(await duoLaunch.uniswapFactory()).to.equal(factoryAddr);
