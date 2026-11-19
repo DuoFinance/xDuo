@@ -15,9 +15,11 @@ const MODE_FILES: Record<XDeployMode, string> = {
   testnet: "x_contracts.testnet.json",
   mainnet: "x_contracts.mainnet.json",
 };
+export { MODE_FILES as X_MODE_FILES };
 
-/** Single-file fallback, kept in sync with the mode file (N3 legacy pattern). */
+/** Single-file fallback, kept in sync with the selfnet mode file only. */
 const LEGACY_FILE = "x_contracts.json";
+export { LEGACY_FILE as X_LEGACY_FILE };
 
 const isEvmAddress = (value: unknown): value is string =>
   typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
@@ -68,6 +70,11 @@ export function xModeForNetwork(hreNetworkName: string): XDeployMode | null {
 
 /** Locate ui-v2/packages/config/src/deployedContracts by ascending from here. */
 export function findUiDeployedContractsDir(): string {
+  const override = (
+    process.env.X_UI_DEPLOYED_CONTRACTS_DIR ??
+    process.env.UI_DEPLOYED_CONTRACTS_DIR
+  )?.trim();
+  if (override) return path.resolve(override);
   let dir = path.resolve(__dirname, "..", "..");
   for (let i = 0; i < 6; i++) {
     const candidate = path.join(
@@ -119,6 +126,15 @@ function atomicWriteJson(file: string, data: Record<string, unknown>): void {
   }
 }
 
+/** Read the persisted addresses for a Hardhat network (empty if none). */
+export function loadDeployedAddresses(
+  hreNetworkName: string,
+): Record<string, string> {
+  const file = deployedPathForNetwork(hreNetworkName);
+  if (!existsSync(file)) return {};
+  return loadJsonObject(file) as Record<string, string>;
+}
+
 /**
  * Persist deployed addresses locally before syncing them to the frontend
  * config for the selected network.
@@ -132,11 +148,17 @@ export function saveDeployedAddresses(
   let existing: Record<string, unknown> = {};
   if (existsSync(deployedJson)) {
     try {
-      const parsed: unknown = JSON.parse(readFileSync(deployedJson, "utf-8"));
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("expected a JSON object");
+      const raw = readFileSync(deployedJson, "utf-8").trim();
+      // A freshly created (0-byte) per-network file is a valid "no deployment
+      // yet" state — JSON.parse("") would otherwise abort the first testnet
+      // or mainnet deploy.
+      if (raw !== "") {
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("expected a JSON object");
+        }
+        existing = parsed as Record<string, unknown>;
       }
-      existing = parsed as Record<string, unknown>;
     } catch (err) {
       throw new Error(
         `[xContracts] failed to read ${deployedJson}: ${(err as Error).message}`,
@@ -167,7 +189,9 @@ export function saveDeployedAddresses(
 
 /**
  * Merge partial addresses into the ui-v2 NeoX contract files for this
- * network's mode (plus the legacy single file, kept in sync as fallback).
+ * network's mode. The legacy single file is a **selfnet fallback** (chain.ts
+ * only reads it when NETWORK_MODE=selfnet), so public deployments must never
+ * overwrite it.
  *
  * - Existing keys are preserved (a base-only run never wipes USDT/DUO/...).
  * - Every provided value must be a valid 0x address — invalid/empty values
@@ -188,7 +212,15 @@ export function saveXContracts(
   }
   const clean = validateAddresses(partial);
   const dir = findUiDeployedContractsDir();
-  for (const file of [MODE_FILES[mode], LEGACY_FILE]) {
+  const files = [MODE_FILES[mode]];
+  if (mode === "selfnet") {
+    files.push(LEGACY_FILE);
+  } else {
+    console.log(
+      `[xContracts] skip ui-v2 ${LEGACY_FILE} (selfnet fallback; not written by ${mode})`,
+    );
+  }
+  for (const file of files) {
     const target = path.join(dir, file);
     const merged = { ...loadJsonObject(target), ...clean };
     atomicWriteJson(target, merged);

@@ -1,7 +1,7 @@
 import hre, { ethers } from "hardhat";
 import { getRpcUrl, resolveChainByNetwork } from "../config/chains";
 import { buildTxOverrides } from "./tx";
-import { saveDeployedAddresses } from "./xContracts";
+import { saveDeployedAddresses, loadDeployedAddresses } from "./xContracts";
 
 const FACTORY_FQN = "contracts/UniswapV2Factory.sol:UniswapV2Factory";
 const ROUTER_FQN = "contracts/UniswapV2Router02.sol:UniswapV2Router02";
@@ -26,6 +26,32 @@ async function main() {
 
   if (!chain.wgasAddress) {
     throw new Error("Missing WGAS address for router deployment.");
+  }
+
+  // Public networks: re-running `testnet:deploy` / `mainnet:deploy` would
+  // deploy a fresh Factory and orphan every pair the previous one knows.
+  // Refuse unless the operator explicitly opts in.
+  if (
+    hre.network.name === "neoxTestnet" ||
+    hre.network.name === "neoxMainnet"
+  ) {
+    const existing = loadDeployedAddresses(hre.network.name);
+    if (existing.FACTORY && existing.ROUTER && existing.BONDING) {
+      const code = await ethers.provider.getCode(existing.FACTORY);
+      if (code && code !== "0x") {
+        if (process.env.ALLOW_REDEPLOY !== "1") {
+          throw new Error(
+            `Refusing to redeploy on ${hre.network.name}: an on-chain trio already exists.\n` +
+              `  FACTORY=${existing.FACTORY}\n  ROUTER=${existing.ROUTER}\n  BONDING=${existing.BONDING}\n` +
+              `Redeploying creates a new Factory and orphans every existing pair.\n` +
+              `Set ALLOW_REDEPLOY=1 to override.`,
+          );
+        }
+        console.warn(
+          `[deploy] WARNING: ALLOW_REDEPLOY=1 — replacing the on-chain trio on ${hre.network.name}; old pairs will be orphaned.`,
+        );
+      }
+    }
   }
 
   console.log("Network:", hre.network.name);
@@ -95,6 +121,9 @@ async function main() {
   );
   console.log("\nSaved deployed contract addresses:");
   console.log(JSON.stringify(saved, null, 2));
+  console.log(
+    `\nNext: npm run ${hre.network.name === "anvil" ? "anvil" : hre.network.name === "neoxTestnet" ? "testnet" : "mainnet"}:verify, then rebuild/redeploy web and restart the indexer.`,
+  );
 }
 
 main().catch((error) => {

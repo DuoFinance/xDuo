@@ -17,6 +17,11 @@
     "testnet:deploy": "hardhat run scripts/deploy.ts --network neoxTestnet",
     "mainnet:deploy": "hardhat run scripts/deploy.ts --network neoxMainnet",
 
+    "anvil:verify": "hardhat run scripts/verifyDeploy.ts --network anvil",
+    "testnet:verify": "hardhat run scripts/verifyDeploy.ts --network neoxTestnet",
+    "mainnet:verify": "hardhat run scripts/verifyDeploy.ts --network neoxMainnet",
+    "test:sync": "hardhat test test/deploySync.test.ts",
+
     "anvil:deploy:duo-pair": "hardhat run scripts/deployDuoPair.ts --network anvil",
 
     "anvil:manage:staking": "hardhat run scripts/manageStaking.ts --network anvil",
