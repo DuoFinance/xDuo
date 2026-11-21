@@ -1,7 +1,6 @@
 node_modules
 coverage
 .env
-.env.example
 .DS_Store
 typechain-types/
 artifacts/
