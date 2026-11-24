@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Local modification (2026-04-29): set the init-code hash for this fork's Pair.
 pragma solidity >=0.5.0;
 
 import '../interfaces/IUniswapV2Pair.sol';
@@ -21,7 +23,7 @@ library UniswapV2Library {
                 hex'ff',
                 factory,
                 keccak256(abi.encodePacked(token0, token1)),
-                hex'bbbb25d7dbd3ac53985ee4587c020269570d6f99ec2613ae13fe973a2ffbf2f5' // init code hash
+                hex'82e67a8328a34a350e6f2c2b4d0a1445bccd8951f744d91e7c7c61a8ff670481' // init code hash
             ))));
     }
 

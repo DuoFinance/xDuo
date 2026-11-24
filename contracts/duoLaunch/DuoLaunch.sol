@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: LicenseRef-Duo-Bonding-Curve-Restricted
 // The virtual-reserve bonding-curve algorithm in this file is subject to the
-// temporary commercial restriction in LICENSE Section B; other code is not.
+// temporary commercial restriction in LICENSE Section B; other original code
+// remains under Section A.
 pragma solidity ^0.8.24;
 
 /// @title DuoLaunch - Fair Launch contract on NeoX

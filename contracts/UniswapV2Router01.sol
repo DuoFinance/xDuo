@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Local modification (2026-04-04): vendored with local import paths.
 pragma solidity =0.6.6;
 
 import './interfaces/IUniswapV2Factory.sol';

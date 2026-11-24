@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Local modification (2026-04-29): changed the LP token name and symbol.
 pragma solidity =0.5.16;
 
 import "./interfaces/IUniswapV2ERC20.sol";

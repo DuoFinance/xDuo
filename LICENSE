@@ -4,6 +4,12 @@ Copyright (c) 2026 Duo Finance
 IMPORTANT: During the Restriction Period in Section B, this is not an
 OSI-approved Open Source license for the Protected Algorithm.
 
+For `contracts/duoLaunch/DuoLaunch.sol`, the SPDX identifier
+`LicenseRef-Duo-Bonding-Curve-Restricted` refers to Sections A and B together.
+Section B applies only to the Protected Algorithm as defined below; other
+original code in that file remains under Section A, subject to third-party
+rights.
+
 ================================================================
 Section A — MIT License Outside the Restriction Period
 ================================================================
@@ -36,6 +42,12 @@ SOFTWARE.
 Third-party components, including vendored or otherwise separately licensed
 software, are not relicensed by this License and remain subject to their
 respective license terms and notices.
+
+The third-party components identified in `THIRD_PARTY_NOTICES.md` are excluded
+from the grants and restrictions in Sections A and B. The Uniswap V2 core,
+periphery, and solidity-lib components listed there are licensed under
+GPL-3.0-or-later. The applicable GPL text is included at
+`licenses/GPL-3.0.txt`.
 
 ================================================================
 Section B — Temporary Commercial Restriction on the Virtual-Reserve
