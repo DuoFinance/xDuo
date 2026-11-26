@@ -145,8 +145,18 @@ git-ignored), and `scripts/liveTest/*.ts` read it through `loadDeployed()`.
 
 ## License
 
-See [`LICENSE`](./LICENSE) for the licensing terms. During the restriction period, only the virtual-reserve bonding-curve algorithm is subject to temporary commercial-use restrictions; other code for which the copyright holder can grant rights is MIT-licensed. Third-party components retain their own licenses.
+[`LICENSE`](./LICENSE) is the unmodified Business Source License 1.1 text with
+Duo Finance parameters. It applies to the complete `contracts/duoLaunch/DuoLaunch.sol`
+source file (`BUSL-1.1`), the Licensed Work. The Additional Use Grant is in
+[`ADDITIONAL_USE_GRANT.md`](./ADDITIONAL_USE_GRANT.md). During the restriction
+period, BUSL 1.1 permits non-production use; the grant permits the specified
+commercial and production use. The Change Date is 2029-10-31 UTC, when the
+Licensed Work becomes available under MIT. Earlier releases remain subject to
+the license distributed with each release.
 
-- **Effective:** 2026-10-31 through 2029-10-30. Starting 2029-10-31, the algorithm is automatically licensed under MIT.
-- **Restricted scope:** the combination of virtual reserves, reserve-based buy/sell pricing, and graduation parameterization described in Section B. It is asset- and chain-agnostic. Generic `x*y=k` math, the DuoLaunch contract as a whole, interfaces, and other code are not restricted as such.
-- **During the restriction period:** non-commercial use and derivative works are allowed. Commercial deployment/operation and providing a derivative implementation for a commercial purpose require prior written permission.
+Other original Duo code is licensed under [`MIT_LICENSE`](./MIT_LICENSE).
+Uniswap V2 and WETH9 source files retain the GPL-3.0-or-later terms identified
+in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md). OpenZeppelin Contracts
+and forge-std retain their upstream licenses and notices. Integrating with
+canonical deployed Duo contracts without copying or modifying the Licensed
+Work is not restricted by its source-code license.

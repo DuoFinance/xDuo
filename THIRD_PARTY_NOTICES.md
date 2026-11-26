@@ -3,9 +3,24 @@
 The components listed here are excluded from the grants and restrictions in
 the repository `LICENSE`. Their upstream license terms apply.
 
+## OpenZeppelin Contracts
+
+Source: <https://github.com/OpenZeppelin/openzeppelin-contracts>
+Version used by this repository: 5.6.1
+License: MIT (see the upstream `LICENSE` file)
+
+The DuoLaunch and TokenTemplate contracts import OpenZeppelin Contracts.
+OpenZeppelin source and copyright notices are not relicensed by this repository.
+
+## forge-std
+
+Source: <https://github.com/foundry-rs/forge-std>
+Use: test-only git submodule
+License: MIT OR Apache-2.0 (see the submodule license files)
+
 ## Uniswap V2 core
 
-Source: <https://github.com/Uniswap/v2-core>  
+Source: <https://github.com/Uniswap/v2-core>
 License: GPL-3.0-or-later (see `licenses/GPL-3.0.txt`)
 
 Files:
@@ -24,7 +39,7 @@ Files:
 
 ## Uniswap V2 periphery
 
-Source: <https://github.com/Uniswap/v2-periphery>  
+Source: <https://github.com/Uniswap/v2-periphery>
 License: GPL-3.0-or-later (see `licenses/GPL-3.0.txt`)
 
 Files:
@@ -39,7 +54,7 @@ Files:
 
 ## Uniswap Solidity library
 
-Source: <https://github.com/Uniswap/solidity-lib>  
+Source: <https://github.com/Uniswap/solidity-lib>
 License: GPL-3.0-or-later (see `licenses/GPL-3.0.txt`)
 
 File:
@@ -48,7 +63,7 @@ File:
 
 ## WETH9
 
-Source: <https://github.com/gnosis/canonical-weth>  
+Source: <https://github.com/gnosis/canonical-weth>
 License: GPL-3.0-or-later (see `licenses/GPL-3.0.txt`)
 
 File:
